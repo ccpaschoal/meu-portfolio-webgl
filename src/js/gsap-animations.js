@@ -46,7 +46,7 @@ export class CinematicStory {
         },
       });
       this.state = {
-        reelAlpha: 1, reelDepth: 0, reelRoll: 0,
+        reelAlpha: 1, reelDepth: 0, reelRoll: 0, reelMorph: 0,
         wallAlpha: 0, wallProgress: 0, wallDepth: -420, wallYaw: -0.15,
         photoAlpha: 0, photoLift: 120, photoReveal: 0, photoDepth: -650,
         vhsAlpha: 0, vhsLift: 140, vhsDepth: -500, phase: 0,
@@ -60,13 +60,14 @@ export class CinematicStory {
       });
       this.timeline
         .to(this.state, { phase: 1, duration: 1, ease: 'none' }, 0)
-        .to(this.state, { reelAlpha: 0, reelDepth: -400, reelRoll: -0.12, duration: 0.1, ease: 'power1.inOut' }, 0.4)
-        .to(this.state, { wallAlpha: 1, wallDepth: 0, wallYaw: 0, duration: 0.09, ease: 'power1.out' }, 0.45)
-        .to(this.state, { wallProgress: 1, duration: 0.2, ease: 'none' }, 0.5)
-        .to(this.state, { wallAlpha: 0, wallDepth: -360, wallYaw: 0.12, duration: 0.08, ease: 'power1.in' }, 0.68)
-        .to(this.state, { photoAlpha: 1, photoReveal: 1, photoLift: 0, photoDepth: 0, duration: 0.08, ease: 'power2.out' }, 0.72)
-        .to(this.state, { photoAlpha: 0, photoLift: -90, photoDepth: -260, duration: 0.07, ease: 'power1.in' }, 0.86)
-        .to(this.state, { vhsAlpha: 1, vhsLift: 0, vhsDepth: 0, duration: 0.1, ease: 'power2.out' }, 0.9);
+        .to(this.state, { reelMorph: 1, duration: 0.38, ease: 'none' }, 0.02)
+        .to(this.state, { reelAlpha: 0, reelDepth: -400, reelRoll: -0.12, duration: 0.1, ease: 'power1.inOut' }, 0.5)
+        .to(this.state, { wallAlpha: 1, wallDepth: 0, wallYaw: 0, duration: 0.09, ease: 'power1.out' }, 0.55)
+        .to(this.state, { wallProgress: 1, duration: 0.2, ease: 'none' }, 0.6)
+        .to(this.state, { wallAlpha: 0, wallDepth: -360, wallYaw: 0.12, duration: 0.08, ease: 'power1.in' }, 0.78)
+        .to(this.state, { photoAlpha: 1, photoReveal: 1, photoLift: 0, photoDepth: 0, duration: 0.08, ease: 'power2.out' }, 0.82)
+        .to(this.state, { photoAlpha: 0, photoLift: -90, photoDepth: -260, duration: 0.07, ease: 'power1.in' }, 0.92)
+        .to(this.state, { vhsAlpha: 1, vhsLift: 0, vhsDepth: 0, duration: 0.1, ease: 'power2.out' }, 0.95);
     });
 
     const listen = (target, type, callback, options = {}) => target?.addEventListener(type, callback, { ...options, signal: this.events.signal });
@@ -78,7 +79,7 @@ export class CinematicStory {
       if (!event.relatedTarget?.closest?.('.film-ring-frame')) { this.hoveringReel = false; this.syncAuto(); }
     });
     listen(scene.container, 'pointerdown', (event) => {
-      if (this.suspended || this.state.phase > 0.44 || event.button !== 0 || event.target.closest?.('button, a') || !event.target.closest?.('.film-ring-frame')) return;
+      if (this.suspended || this.state.phase > 0.02 || event.button !== 0 || event.target.closest?.('button, a') || !event.target.closest?.('.film-ring-frame')) return;
       this.stopAutoImmediately();
       this.turnTween?.kill();
       this.turnTween = null;
@@ -131,7 +132,7 @@ export class CinematicStory {
       this.timeline.scrollTrigger.refresh();
     });
     listen(window, 'keydown', (event) => {
-      if (this.suspended || this.state.phase > 0.44 || event.target.closest?.('button, a, input, textarea')) return;
+      if (this.suspended || this.state.phase > 0.02 || event.target.closest?.('button, a, input, textarea')) return;
       if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
         event.preventDefault();
         this.step(event.key === 'ArrowRight' ? 1 : -1);
@@ -150,7 +151,7 @@ export class CinematicStory {
   }
 
   syncAuto() {
-    const running = this.playing && !this.suspended && !this.dragging && !this.pointer && !this.hoveringReel && !this.navigating && !this.turnTween?.isActive() && !document.hidden && !this.motion.matches && this.state.phase < 0.45;
+    const running = this.playing && !this.suspended && !this.dragging && !this.pointer && !this.hoveringReel && !this.navigating && !this.turnTween?.isActive() && !document.hidden && !this.motion.matches && this.state.phase < 0.02;
     if (running === this.autoRunning) return;
     this.autoRunning = running;
     gsap.killTweensOf(this.autoTween);

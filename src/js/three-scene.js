@@ -62,7 +62,7 @@ export class CinematicScene {
     this.scene.add(this.vhsRig);
 
     this.pose = {
-      reelAlpha: 1, reelDepth: 0, reelRoll: 0,
+      reelAlpha: 1, reelDepth: 0, reelRoll: 0, reelMorph: 0,
       wallAlpha: 0, wallProgress: 0, wallDepth: -420, wallYaw: -0.15,
       photoAlpha: 0, photoLift: 120, photoReveal: 0, photoDepth: -650,
       vhsAlpha: 0, vhsLift: 140, vhsDepth: -500, phase: 0,
@@ -88,6 +88,7 @@ export class CinematicScene {
     // Keep the ring legible on narrow screens without changing CSS3DObject matrices.
     const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.baseCamera.z;
     this.film.focusScale = THREE.MathUtils.clamp(visibleHeight / 900, 0.9, 1.06);
+    this.film.refreshGridLayout();
     const narrowScale = THREE.MathUtils.clamp(width / 1280, 0.68, 1);
     this.filmRig.scale.setScalar(narrowScale);
     const photoScale = THREE.MathUtils.clamp(Math.min(width / 760, height / 820), 0.68, 1);
@@ -102,6 +103,7 @@ export class CinematicScene {
     this.pose = pose;
     this.filmRig.position.set(0, 0, pose.reelDepth || 0);
     this.filmRig.rotation.z = pose.reelRoll || 0;
+    this.film.setMorph(pose.reelMorph || 0);
     this.film.setOpacity(pose.reelAlpha);
     this.wallRig.position.set(0, 0, pose.wallDepth || 0);
     this.wallRig.rotation.y = pose.wallYaw || 0;
