@@ -20,7 +20,7 @@ export class CinematicScene {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(42, 1, 1, 5000);
     this.baseCamera = new THREE.Vector3(0, 0, 1100);
-    this.camera.position.copy(this.baseCamera);
+    this.camera.position.set(0, 0, 2500);
     this.camera.lookAt(0, 0, 0);
 
     this.renderer = new CSS3DRenderer();

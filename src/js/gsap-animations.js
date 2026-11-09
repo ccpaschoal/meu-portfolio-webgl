@@ -216,6 +216,8 @@ export class CinematicStory {
     const chapter = phase < 0.48 ? 'projects' : phase < 0.75 ? 'sites' : phase < 0.93 ? 'about' : 'contact';
     document.body.dataset.chapter = chapter;
     this.copies.forEach((copy) => copy.setAttribute('aria-hidden', String(copy.dataset.copy !== chapter)));
+    const projectCopy = this.copies.find((copy) => copy.dataset.copy === 'projects');
+    if (projectCopy) projectCopy.style.opacity = String(1 - gsap.utils.clamp(0, 1, (this.state.reelMorph - 0.15) / 0.25));
     this.nav.forEach((link) => {
       if (link.dataset.chapter === chapter) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
@@ -223,6 +225,8 @@ export class CinematicStory {
     if (this.transport) {
       this.transport.inert = chapter !== 'projects';
       this.transport.classList.toggle('is-hidden', chapter !== 'projects');
+      this.transport.style.opacity = String(1 - gsap.utils.clamp(0, 1, (this.state.reelMorph - 0.58) / 0.24));
+      this.transport.style.pointerEvents = this.state.reelMorph > 0.8 ? 'none' : '';
     }
     if (this.progressBar) this.progressBar.style.transform = `scaleX(${phase})`;
     const number = { projects: '01', sites: '02', about: '03', contact: '04' }[chapter];

@@ -167,11 +167,12 @@ export class FilmRing extends THREE.Group {
     this.gridHeight = height;
     const columns = width < 520 ? 2 : width < 800 ? 3 : 4;
     const rows = Math.ceil(this.frames.length / columns);
-    const projectedScale = 1100 / (1100 - 180);
+    const worldHeight = 2 * Math.tan(THREE.MathUtils.degToRad(42 / 2)) * (1100 - 180);
+    const worldWidth = worldHeight * width / height;
     const verticalGaps = Math.max(0, rows - 1) * 16;
     const horizontalGaps = Math.max(0, columns - 1) * 20;
-    const heightScale = (height / projectedScale - verticalGaps) / (rows * this.height);
-    const widthScale = (width / projectedScale - horizontalGaps) / (columns * this.frameWidth);
+    const heightScale = (worldHeight * 0.78 - verticalGaps) / (rows * this.height);
+    const widthScale = (worldWidth * 0.88 - horizontalGaps) / (columns * this.frameWidth);
     const gridScale = THREE.MathUtils.clamp(Math.min(heightScale, widthScale), 0.34, 0.82);
     const stepX = this.frameWidth * gridScale + 20;
     const stepY = this.height * gridScale + 16;
