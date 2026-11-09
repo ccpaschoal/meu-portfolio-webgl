@@ -1,0 +1,138 @@
+import assert from 'node:assert/strict';
+import { chromium } from '@playwright/test';
+import { createServer } from 'vite';
+
+const server = await createServer({ server: { host: '127.0.0.1', port: 0, open: false, strictPort: false } });
+await server.listen();
+const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('pageerror', (error) => errors.push(error.message));
+const baseURL = `http://127.0.0.1:${server.httpServer.address().port}`;
+const state = (fn) => page.evaluate(fn);
+async function navigate(chapter) {
+  await page.locator(`nav [data-chapter="${chapter}"]`).click();
+  await page.waitForFunction(() => {
+    const story = window.appUnderTest.story;
+    return !story.navigating && Math.abs(story.state.phase - story.timeline.scrollTrigger.progress) < 0.001;
+  });
+}
+
+try {
+  await page.goto(baseURL, { waitUntil: 'networkidle' });
+  assert.equal(await page.locator('#preloader').count(), 1, 'The experience must open with the cinema preloader');
+  await page.locator('#play-button:enabled').waitFor();
+  assert.equal(await page.locator('#load-progress').getAttribute('aria-valuenow'), '100');
+  await page.evaluate(async () => {
+    const url = performance.getEntriesByType('resource').find((entry) => entry.name.includes('/js/main.js')).name;
+    window.appUnderTest = (await import(url)).experience;
+  });
+  assert.equal(await state(() => window.appUnderTest.scene.camera.position.z), 2500);
+  await page.locator('#play-button').click();
+  await page.waitForFunction(() => document.body.dataset.started === 'true');
+  assert.ok(Math.abs(await state(() => window.appUnderTest.scene.camera.position.z) - 1000) < 1);
+  assert.equal(await page.locator('.film-ring-renderer').count(), 1);
+  assert.equal(await page.locator('.film-ring-frame').count(), 10);
+  const structure = await state(() => {
+    const ring = window.appUnderTest.scene.film;
+    return ring.frames.map((frame) => ({
+      radiusError: Math.abs(Math.hypot(frame.userData.base.x, frame.userData.base.z) - ring.radius),
+      dot: (-frame.userData.base.x * Math.sin(frame.rotation.y) - frame.userData.base.z * Math.cos(frame.rotation.y)) / ring.radius,
+    }));
+  });
+  assert.ok(structure.every((item) => item.radiusError < 0.001 && item.dot > 0.999), JSON.stringify(structure));
+  assert.ok(await page.locator('.film-ribbon-segment').count() >= 64, 'Perforated film must continuously connect the carousel groups');
+  const before = await state(() => window.appUnderTest.scene.film.rotation.y);
+  assert.ok(await page.locator('.film-ring-frame .film-project-card').evaluateAll((cards) => cards.every((card) => !/blur\((?!0px\))/.test(getComputedStyle(card).filter))), 'Film images must remain sharp before hover');
+  await page.waitForTimeout(350);
+  assert.ok(await state(() => window.appUnderTest.scene.film.rotation.y) < before, 'The reel must rotate automatically');
+  await page.locator('#reel-play-toggle').click();
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.appUnderTest.story.goToFrame(3));
+  await page.waitForTimeout(800);
+  assert.ok(await state(() => window.appUnderTest.scene.film.locked));
+  assert.equal(await page.locator('.film-ring-frame.is-active').count(), 1);
+  const lockedIndex = await state(() => window.appUnderTest.scene.film.activeIndex);
+  await page.mouse.move(30, 400);
+  await page.mouse.wheel(0, 600);
+  await page.waitForTimeout(750);
+  assert.equal(await state(() => window.appUnderTest.scene.film.activeIndex), lockedIndex, 'Vertical scroll must not control the reel');
+  await page.locator('#next-project').click();
+  await page.waitForTimeout(800);
+  assert.equal(await state(() => window.appUnderTest.scene.film.activeIndex), lockedIndex + 1);
+  assert.ok(await state(() => window.appUnderTest.scene.film.locked));
+  const sharp = page.locator('.film-ring-frame.is-active .film-project-card');
+  await sharp.hover();
+  await page.waitForTimeout(500);
+  assert.ok(await sharp.evaluate((element) => getComputedStyle(element).filter.includes('blur(0px)')), 'Hover must focus the locked frame');
+  const inlineSource = await sharp.locator('img').getAttribute('src');
+  await sharp.locator('.inline-carousel-controls button').nth(1).click();
+  await sharp.locator('img').evaluate((image) => image.decode());
+  assert.notEqual(await sharp.locator('img').getAttribute('src'), inlineSource, 'Each film frame must contain its own working carousel');
+  assert.equal(await page.locator('#phone-viewer').getAttribute('aria-hidden'), 'true');
+  const images = await page.locator('.card-thumb').evaluateAll((nodes) => nodes.map((img) => ({ src: img.getAttribute('src'), loaded: img.complete && img.naturalWidth > 0 })));
+  assert.ok(images.every((img) => img.src.startsWith('/assets/') && img.loaded));
+  await page.locator('.film-ring-frame.is-active .frame-open').click();
+  assert.deepEqual(errors, [], 'Opening the carousel must not raise a runtime error');
+  assert.equal(await page.locator('#phone-viewer').getAttribute('aria-hidden'), 'false');
+  const first = await page.locator('.phone-slider img.active').getAttribute('src');
+  await page.locator('.next-photo').click();
+  assert.notEqual(await page.locator('.phone-slider img.active').getAttribute('src'), first);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#phone-viewer').getAttribute('aria-hidden'), 'true');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'logs/CINEMA-PROJETOS.png' });
+  await navigate('sites');
+  assert.equal(await page.locator('body').getAttribute('data-chapter'), 'sites');
+  assert.equal(await page.locator('.site-projector').count(), 4);
+  assert.equal(await page.locator('.film-ring-frame .site-projector').count(), 0, 'Websites must stay outside the film carousel');
+  await page.screenshot({ path: 'logs/CINEMA-SITES.png' });
+  await navigate('about');
+  assert.equal(await page.locator('body').getAttribute('data-chapter'), 'about');
+  assert.ok(await page.locator('.polaroid img').evaluate((img) => img.complete && img.naturalWidth > 0));
+  await page.locator('.polaroid').hover({ position: { x: 80, y: 80 } });
+  const portrait = await page.locator('.polaroid').boundingBox();
+  await page.mouse.move(portrait.x + portrait.width * 0.8, portrait.y + portrait.height * 0.4);
+  await page.waitForTimeout(400);
+  assert.ok(await state(() => Math.abs(window.appUnderTest.scene.photo.rotation.y) > 0.005));
+  await page.screenshot({ path: 'logs/CINEMA-SOBRE.png' });
+  await navigate('contact');
+  assert.equal(await page.locator('body').getAttribute('data-chapter'), 'contact');
+  assert.equal(await page.locator('.vhs-key').count(), 5);
+  const links = await page.locator('.vhs-key').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('href')));
+  assert.ok(links.includes('https://github.com/ccpaschoal') && links.includes('mailto:camillacpaschoal@gmail.com'));
+  assert.deepEqual(await page.locator('.vhs-symbol').allTextContents(), ['▶', '■', '◀◀', '▶▶', '▲']);
+  const key = page.locator('.vhs-key').first();
+  await key.dispatchEvent('pointerdown', { button: 0, pointerId: 1 });
+  await page.waitForTimeout(120);
+  assert.ok(await key.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m42 >= 3));
+  await key.dispatchEvent('pointerup', { button: 0, pointerId: 1 });
+  await page.waitForTimeout(500);
+  assert.ok(Math.abs(await key.evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m42)) < 0.1);
+  await page.screenshot({ path: 'logs/CINEMA-CONTATO.png' });
+  for (const width of [1024, 768, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.waitForTimeout(400);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await navigate('about');
+    const photo = await page.locator('.polaroid').boundingBox();
+    assert.ok(photo.x >= 0 && photo.x + photo.width <= width + 1, JSON.stringify({ width, photo, details: await state(() => ({ phase: window.appUnderTest.scene.pose.phase, reveal: window.appUnderTest.scene.pose.photoReveal, depth: window.appUnderTest.scene.pose.photoDepth, camera: window.appUnderTest.scene.camera.position.toArray(), rotation: window.appUnderTest.scene.photo.rotation.toArray(), rig: window.appUnderTest.scene.photoRig.position.toArray(), style: window.appUnderTest.scene.photo.element.parentElement.style.transform, size: window.appUnderTest.scene.renderer.getSize() })) }));
+    await navigate('contact');
+    const panel = await page.locator('.vhs-deck').boundingBox();
+    assert.ok(panel.x >= 0 && panel.x + panel.width <= width + 1, JSON.stringify({ width, panel, details: await state(() => ({ rootScroll: window.appUnderTest.scene.container.scrollLeft, rendererScroll: window.appUnderTest.scene.renderer.domElement.scrollLeft, phase: window.appUnderTest.scene.pose.phase })) }));
+    assert.equal(await state(() => window.appUnderTest.scene.renderer.domElement.scrollLeft), 0, 'The fixed 3D stage must not acquire horizontal scroll');
+    await page.screenshot({ path: `logs/CINEMA-${width}.png` });
+  }
+  assert.deepEqual(errors, []);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('#play-button:enabled').click();
+  await page.waitForFunction(() => document.body.dataset.started === 'true');
+  await page.locator('[data-chapter="about"]').click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('body').getAttribute('data-chapter'), 'about');
+  console.log('PASS: preloader, automatic reel, scroll independence, selection, projection, real images, gallery, portrait tilt, VHS mechanics, responsive bounds, reduced motion and runtime errors.');
+} finally {
+  await browser.close();
+  await server.close();
+}
