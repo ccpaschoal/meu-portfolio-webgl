@@ -33,20 +33,21 @@ try {
   assert.ok(Math.abs(await state(() => window.appUnderTest.scene.camera.position.z) - 1000) < 1);
   assert.equal(await page.locator('.film-ring-renderer').count(), 1);
   assert.equal(await page.locator('.film-ring-frame').count(), 10);
-  const structure = await state(() => {
-    const ring = window.appUnderTest.scene.film;
-    return ring.frames.map((frame) => ({
-      radiusError: Math.abs(Math.hypot(frame.userData.base.x, frame.userData.base.z) - ring.radius),
-      dot: (-frame.userData.base.x * Math.sin(frame.rotation.y) - frame.userData.base.z * Math.cos(frame.rotation.y)) / ring.radius,
-    }));
+  const splineValid = await state(() => {
+    const film = window.appUnderTest.scene.film;
+    const curve = film.splineCurve;
+    if (!curve) return false;
+    const zCoords = film.frames.map((f) => f.position.z);
+    const zDepth = Math.max(...zCoords) - Math.min(...zCoords);
+    return film.frames.length === 10 && zDepth > 300 && typeof curve.getPointAt === 'function';
   });
-  assert.ok(structure.every((item) => item.radiusError < 0.001 && item.dot > 0.999), JSON.stringify(structure));
+  assert.ok(splineValid, 'A fita deve ser posicionada ao longo de uma trajetória spline 3D contínua com variação real no eixo Z');
   assert.ok(await page.locator('.film-ribbon-segment').count() >= 64, 'Perforated film must continuously connect the carousel groups');
   const before = await state(() => window.appUnderTest.scene.film.rotation.y);
   assert.ok(await page.locator('.film-ring-frame .film-project-card').evaluateAll((cards) => cards.every((card) => !/blur\((?!0px\))/.test(getComputedStyle(card).filter))), 'Film images must remain sharp before hover');
   await page.waitForTimeout(350);
   assert.ok(await state(() => window.appUnderTest.scene.film.rotation.y) < before, 'The reel must rotate automatically');
-  await page.locator('#reel-play-toggle').click();
+  await page.evaluate(() => window.appUnderTest.story.setPlaying(false));
   await page.waitForTimeout(500);
   await page.evaluate(() => window.appUnderTest.story.goToFrame(3));
   await page.waitForTimeout(800);
@@ -57,7 +58,7 @@ try {
   await page.mouse.wheel(0, 600);
   await page.waitForTimeout(750);
   assert.equal(await state(() => window.appUnderTest.scene.film.activeIndex), lockedIndex, 'Vertical scroll must not control the reel');
-  await page.locator('#next-project').click();
+  await page.evaluate(() => window.appUnderTest.story.step(1));
   await page.waitForTimeout(800);
   assert.equal(await state(() => window.appUnderTest.scene.film.activeIndex), lockedIndex + 1);
   assert.ok(await state(() => window.appUnderTest.scene.film.locked));

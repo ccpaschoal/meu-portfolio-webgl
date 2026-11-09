@@ -46,7 +46,11 @@ export class CinematicScene {
       this.pointerTarget.y = -(e.clientY / window.innerHeight) * 2 + 1;
     };
     window.addEventListener('pointermove', onPointerMove, { passive: true });
-    this.cleanupPointer = () => window.removeEventListener('pointermove', onPointerMove);
+    window.addEventListener('mousemove', onPointerMove, { passive: true });
+    this.cleanupPointer = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('mousemove', onPointerMove);
+    };
 
     this.filmRig = new THREE.Group();
     this.filmRig.name = 'film-reel-rig';
@@ -141,37 +145,51 @@ export class CinematicScene {
 
   applyPose(pose) {
     this.pose = pose;
+    // 2. Isolamento Estrito: a fita 35mm fica visível estritamente em 'projetos'
+    const isProjects = (pose.phase < 0.44);
+    this.filmRig.visible = isProjects;
     this.filmRig.position.set(0, 0, pose.reelDepth || 0);
     this.filmRig.rotation.z = pose.reelRoll || 0;
     this.film.setMorph(pose.reelMorph || 0);
-    this.film.setOpacity(pose.reelAlpha);
+    this.film.setOpacity(isProjects ? (pose.reelAlpha ?? 1) : 0);
+
+    const isSites = (pose.phase >= 0.42 && pose.phase < 0.76);
+    this.wallRig.visible = isSites;
     this.wallRig.position.set(0, 0, pose.wallDepth || 0);
     this.wallRig.rotation.y = pose.wallYaw || 0;
-    this.wall.setState(pose.wallAlpha, pose.wallProgress);
+    this.wall.setState(isSites ? (pose.wallAlpha ?? 1) : 0, pose.wallProgress);
+
+    const isAbout = (pose.phase >= 0.72 && pose.phase < 0.94);
+    this.photoRig.visible = isAbout;
     this.photoRig.position.set(0, pose.photoLift || 0, pose.photoDepth || 0);
     this.photoRig.rotation.y = (1 - (pose.photoReveal || 0)) * -0.18;
-    setPhysicalOpacity(this.photo, pose.photoAlpha);
+    setPhysicalOpacity(this.photo, isAbout ? (pose.photoAlpha ?? 1) : 0);
+
+    const isContact = (pose.phase >= 0.88);
+    this.vhsRig.visible = isContact;
     this.vhsRig.position.set(0, pose.vhsLift || 0, pose.vhsDepth || 0);
-    setPhysicalOpacity(this.vhs, pose.vhsAlpha);
+    setPhysicalOpacity(this.vhs, isContact ? (pose.vhsAlpha ?? 1) : 0);
   }
 
   render() {
     if (this.disposed) return;
     if (!document.hidden && this.renderReady) {
-      // Interpolação suave (lerp) no rastreamento do cursor para profundidade imediata
-      this.pointerCurrent.x += (this.pointerTarget.x - this.pointerCurrent.x) * 0.04;
-      this.pointerCurrent.y += (this.pointerTarget.y - this.pointerCurrent.y) * 0.04;
+      // 3. Parallax Efetivo no Ecrã Inicial (Home): amplitude visível de 0.18 em Y e 0.12 em X
+      this.pointerCurrent.x += (this.pointerTarget.x - this.pointerCurrent.x) * 0.055;
+      this.pointerCurrent.y += (this.pointerTarget.y - this.pointerCurrent.y) * 0.055;
 
-      // Parallax suave na rotação da câmera (X, Y)
-      this.camera.rotation.y = -this.pointerCurrent.x * 0.032;
-      this.camera.rotation.x = this.pointerCurrent.y * 0.022;
+      const isHome = document.body.dataset.started !== 'true';
+      const parallaxFactor = isHome ? 1 : 0.02;
+      this.camera.rotation.y = -this.pointerCurrent.x * 0.18 * parallaxFactor;
+      this.camera.rotation.x = this.pointerCurrent.y * 0.12 * parallaxFactor;
 
-      // Parallax volumétrico no feixe de luz e poeira
+      // Parallax volumétrico ampliado no feixe de luz e poeira
+      const beamFactor = isHome ? 1 : 0.2;
       if (this.roomBeam) {
-        this.roomBeam.style.transform = `rotate(${-8 + this.pointerCurrent.x * 3.5}deg) translate(${this.pointerCurrent.x * 16}px, ${-this.pointerCurrent.y * 10}px)`;
+        this.roomBeam.style.transform = `rotate(${-8 + this.pointerCurrent.x * 6 * beamFactor}deg) translate(${this.pointerCurrent.x * 35 * beamFactor}px, ${-this.pointerCurrent.y * 22 * beamFactor}px)`;
       }
       if (this.roomDust) {
-        this.roomDust.style.transform = `translate(${this.pointerCurrent.x * 20}px, ${-this.pointerCurrent.y * 14}px)`;
+        this.roomDust.style.transform = `translate(${this.pointerCurrent.x * 45 * beamFactor}px, ${-this.pointerCurrent.y * 30 * beamFactor}px)`;
       }
 
       this.film.updateFaces(this.camera);

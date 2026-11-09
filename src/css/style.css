@@ -86,10 +86,9 @@ button:disabled { cursor: wait; }
 .chapter-copy--contact { top: 16vh; }
 .chapter-copy--contact h2 { font-size: clamp(28px,3.8vw,54px); }
 
-.project-transport { position: fixed; left: 50%; bottom: 62px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 20px; padding: 9px 14px; border: 1px solid #75664a66; background: #10100ed9; border-radius: 3px; transition: opacity .2s ease; pointer-events: none !important; }
-.project-transport.is-hidden { opacity: 0; pointer-events: none !important; }
-.project-transport button { border: 1px solid #4d4435; background: #242018; color: #d4bc92; width: 38px; height: 38px; border-radius: 2px; font-size: 12px; pointer-events: auto !important; }
-.project-transport > div { width: 210px; text-align: center; pointer-events: none !important; }
+#project-transport, .project-transport { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }
+.project-transport button { display: none !important; pointer-events: none !important; }
+.project-transport > div { display: none !important; }
 #project-position { color: #ceb389; font: 10px 'Courier New',monospace; }
 #project-title { margin-top: 4px; color: #e2d7c5; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
 
@@ -257,12 +256,7 @@ body[data-chapter="contact"] .room-floor { background: radial-gradient(ellipse,r
 .is-active.is-locked .card-name { font-size: clamp(20px, 2.2vw, 26px); }
 .is-active.is-locked .inline-carousel-controls { opacity: 1; visibility: visible; }
 
-.project-transport { bottom: 26px; padding: 8px 12px; border-color: #62543c; border-radius: 8px; background: linear-gradient(145deg,rgba(41,35,25,.95),rgba(14,14,11,.95)); box-shadow: 0 12px 32px #0008,inset 0 1px 0 #c5aa7833; gap: 12px; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; }
-.project-transport.is-hidden { opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; transform: translateY(20px) !important; }
-.project-transport > div { pointer-events: none !important; }
-.project-transport button { border-radius: 4px; width: 40px; height: 40px; box-shadow: inset 0 1px 0 #b6a48033,0 2px 0 #090906; pointer-events: auto !important; }
-#reel-play-toggle { border-left-color: #b49662; background: #463820; color: #efd3a1; }
-#project-title { font-size: 11px; }
+#project-transport, .project-transport { display: none !important; }
 
 .site-projector.is-projected { border-color: #d4a76a; box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 65px rgba(212,167,106,.3); }
 

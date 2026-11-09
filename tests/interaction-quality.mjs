@@ -27,7 +27,7 @@ try {
   await page.mouse.move(15, 15);
   await page.waitForTimeout(550);
   assert.ok(await page.evaluate(() => testApp.scene.film.rotation.y) < hovered, 'Mouse leave must resume automatic rotation');
-  await page.locator('#reel-play-toggle').click();
+  await page.evaluate(() => testApp.story.setPlaying(false));
   await page.waitForTimeout(500);
   const paused = await page.evaluate(() => testApp.scene.film.rotation.y);
   await page.mouse.move(20, 300);
@@ -59,7 +59,7 @@ try {
   await page.screenshot({ path: 'logs/REFINO-VHS.png' });
   await page.locator('nav [data-chapter="projects"]').click();
   await page.waitForTimeout(1300);
-  await page.locator('#reel-play-toggle').click();
+  await page.evaluate(() => testApp.story.setPlaying(true));
   await page.mouse.move(15, 15);
   const resume = await page.evaluate(() => testApp.scene.film.rotation.y);
   await page.waitForTimeout(700);

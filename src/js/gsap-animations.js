@@ -251,6 +251,12 @@ export class CinematicStory {
     this.scene.applyPose(this.state);
     const phase = this.state.phase;
     const chapter = phase < 0.48 ? 'projects' : phase < 0.75 ? 'sites' : phase < 0.93 ? 'about' : 'contact';
+    const isProjects = chapter === 'projects';
+    this.scene.filmRig.visible = isProjects;
+    this.scene.wallRig.visible = (chapter === 'sites');
+    this.scene.photoRig.visible = (chapter === 'about');
+    this.scene.vhsRig.visible = (chapter === 'contact');
+
     if (this.currentChapter && this.currentChapter !== chapter) {
       this.triggerProjectorShutter();
     }

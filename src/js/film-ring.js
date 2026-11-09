@@ -4,15 +4,14 @@ import { gsap } from 'gsap';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Continuous 35mm-style ring. CSS3DRenderer owns the wrapper matrices. */
+/** Continuous 35mm-style organic S-spline. CSS3DRenderer owns the wrapper matrices. */
 export class FilmRing extends THREE.Group {
   constructor(elements, { radius = 790, height = 340, tilt = 0.15 } = {}) {
     super();
     if (!Array.isArray(elements) || elements.length !== 10) {
       throw new RangeError('The film ring expects exactly ten carousel frames.');
     }
-    if (!Number.isFinite(radius) || radius < 500) throw new RangeError('The film radius must be at least 500 CSS pixels.');
-    this.name = 'continuous-35mm-film-ring';
+    this.name = 'continuous-35mm-film-spline';
     this.radius = radius;
     this.height = height;
     this.reducedMotion = reducedMotion();
@@ -32,48 +31,67 @@ export class FilmRing extends THREE.Group {
     this.frames = [];
     this.sceneOpacity = 1;
 
+    // Track group ensures the S-spline retains an organic, stabilized path across screen
+    this.trackGroup = new THREE.Group();
+    this.trackGroup.name = 'film-spline-track';
+    this.add(this.trackGroup);
+
+    // 1. Trajetória 3D Contínua em "S" com profundidade real no eixo Z
+    // t = 0.5 é o centro frontal focal (Z = -480 local, virando Z = +480 no mundo de frente para a câmera)
+    this.splineCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(1200, 140, 220),
+      new THREE.Vector3(700, 75, -80),
+      new THREE.Vector3(280, 25, -360),
+      new THREE.Vector3(0, 0, -480),        // Centro frontal em foco nítido na câmera
+      new THREE.Vector3(-280, -25, -360),
+      new THREE.Vector3(-700, -75, -80),
+      new THREE.Vector3(-1200, -140, 220),
+    ], false, 'catmullrom', 0.5);
+    this.splineCurve.arcLengthDivisions = 400;
+
     const count = elements.length;
-    const step = Math.PI * 2 / count;
-    const width = 2 * radius * Math.tan(step / 2) + 8;
+    const width = 540;
     this.frameWidth = width;
     this.ribbon = new THREE.Group();
     this.ribbon.name = 'translucent-amber-film-with-sprockets';
     const segmentsPerFrame = 4;
-    const segmentCount = count * segmentsPerFrame;
-    const beltRadius = radius + 1;
-    const segmentWidth = 2 * beltRadius * Math.tan(Math.PI / segmentCount) + 8;
+    const segmentCount = count * segmentsPerFrame; // 40 pares = 80 segmentos (>= 64)
+    const segmentWidth = 140;
 
     for (let index = 0; index < segmentCount; index += 1) {
-      const angle = index * Math.PI * 2 / segmentCount;
+      const tSeg = (index + 0.5) / segmentCount;
+      const posSeg = this.splineCurve.getPointAt(tSeg);
+      const tangentSeg = this.splineCurve.getTangentAt(tSeg).normalize();
+      const angleY = Math.atan2(tangentSeg.z, -tangentSeg.x);
+      const angleZ = Math.atan2(-tangentSeg.y, Math.hypot(tangentSeg.x, tangentSeg.z));
+
       for (const edge of [-1, 1]) {
         const strip = document.createElement('div');
         strip.className = 'film-ribbon-segment';
         strip.setAttribute('aria-hidden', 'true');
         strip.style.width = `${segmentWidth}px`;
         strip.style.pointerEvents = 'none';
-        strip.style.background = 'linear-gradient(180deg, rgba(126, 77, 35, 0.76), rgba(67, 38, 18, 0.64))';
+        strip.style.background = 'linear-gradient(180deg, rgba(38, 22, 11, 0.76) 0%, rgba(18, 10, 4, 0.85) 100%)';
         strip.style.borderColor = 'rgba(222, 157, 73, 0.38)';
         strip.style.setProperty('--hole-offset', `${-index * segmentWidth}px`);
         const object = new CSS3DObject(strip);
-        object.position.set(-beltRadius * Math.sin(angle), edge * (height / 2 - 10), -beltRadius * Math.cos(angle));
-        object.rotation.y = angle;
+        object.position.set(posSeg.x, posSeg.y + edge * (height / 2 - 10), posSeg.z);
+        object.rotation.set(0, angleY, angleZ * 0.4);
         object.userData.ringPosition = object.position.clone();
         object.userData.ringRotation = object.rotation.clone();
-        object.userData.pathT = (index + 0.5) / segmentCount;
-        object.userData.pathPosition = this.curvePoint(object.userData.pathT);
+        object.userData.pathT = tSeg;
+        object.userData.pathPosition = posSeg.clone();
         object.userData.pathPosition.y += edge * (height / 2 - 10);
-        const tangent = this.curveTangent(object.userData.pathT);
-        object.userData.pathRotation = new THREE.Euler(0, Math.atan2(-tangent.z, tangent.x), 0);
+        object.userData.pathRotation = object.rotation.clone();
         object.userData.ringQuaternion = new THREE.Quaternion().setFromEuler(object.userData.ringRotation);
         object.userData.pathQuaternion = new THREE.Quaternion().setFromEuler(object.userData.pathRotation);
         this.ribbon.add(object);
         this.ribbonSegments.push(object);
       }
     }
-    this.add(this.ribbon);
+    this.trackGroup.add(this.ribbon);
 
     elements.forEach((element, index) => {
-      const angle = index * step;
       const frameElement = document.createElement('div');
       frameElement.className = 'film-ring-frame';
       frameElement.dataset.frame = String(index + 1).padStart(2, '0');
@@ -98,23 +116,18 @@ export class FilmRing extends THREE.Group {
       frameElement.append(content);
 
       const frame = new CSS3DObject(frameElement);
-      frame.position.set(-radius * Math.sin(angle), 0, -radius * Math.cos(angle));
-      frame.rotation.y = angle;
-      frame.userData.ringPosition = frame.position.clone();
-      frame.userData.base = frame.position.clone();
-      frame.userData.ringRotation = frame.rotation.clone();
-      const pathT = (index + 0.5) / count;
-      frame.userData.pathPosition = this.curvePoint(pathT);
-      const pathTangent = this.curveTangent(pathT);
-      frame.userData.pathRotation = new THREE.Euler(0, Math.PI, Math.atan2(-pathTangent.y, pathTangent.x) * 0.08);
+      frame.userData.ringPosition = new THREE.Vector3();
+      frame.userData.base = new THREE.Vector3();
+      frame.userData.ringRotation = new THREE.Euler();
+      frame.userData.pathPosition = new THREE.Vector3();
+      frame.userData.pathRotation = new THREE.Euler();
       frame.userData.gridPosition = new THREE.Vector3();
-      frame.userData.gridRotation = new THREE.Euler(0, Math.PI, 0);
-      frame.userData.ringQuaternion = new THREE.Quaternion().setFromEuler(frame.userData.ringRotation);
-      frame.userData.pathQuaternion = new THREE.Quaternion().setFromEuler(frame.userData.pathRotation);
+      frame.userData.gridRotation = new THREE.Euler(0, 0, 0);
+      frame.userData.ringQuaternion = new THREE.Quaternion();
+      frame.userData.pathQuaternion = new THREE.Quaternion();
       frame.userData.gridQuaternion = new THREE.Quaternion().setFromEuler(frame.userData.gridRotation);
-      frame.userData.angle = angle;
       frame.userData.index = index;
-      this.add(frame);
+      this.trackGroup.add(frame);
       this.frames.push(frame);
 
       const lens = (focused) => {
@@ -135,34 +148,69 @@ export class FilmRing extends THREE.Group {
     });
 
     this.refreshGridLayout();
+    this.updateSplineFlow();
     this.setActive(0, true);
   }
 
   curvePoint(progress) {
-    if (!this.previewCurve) {
-      // Trajetória contínua 3D paramétrica em "S" com profundidade no eixo Z (THREE.CatmullRomCurve3 fechada e orgânica)
-      const points = [
-        new THREE.Vector3(0, 20, 820),        // Centro frontal (área ativa em foco nítido na câmera)
-        new THREE.Vector3(-480, -30, 620),    // Curva suave à esquerda
-        new THREE.Vector3(-780, 45, 180),     // Loop esquerdo com profundidade
-        new THREE.Vector3(-660, -40, -360),   // Recuo no fundo esquerdo
-        new THREE.Vector3(-160, 30, -680),    // Centro fundo em S
-        new THREE.Vector3(260, -30, -620),    // Transição fluida em S
-        new THREE.Vector3(680, 45, -340),     // Fundo direito
-        new THREE.Vector3(790, -40, 190),     // Loop direito com profundidade
-        new THREE.Vector3(480, 30, 630),      // Retorno suave frontal
-      ];
-      this.previewCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
-      this.previewCurve.arcLengthDivisions = 400;
-    }
-    const t = ((progress % 1) + 1) % 1;
-    return this.previewCurve.getPointAt(t);
+    if (!this.splineCurve) return new THREE.Vector3();
+    const t = THREE.MathUtils.clamp(progress, 0, 1);
+    return this.splineCurve.getPointAt(t);
   }
 
   curveTangent(progress) {
-    if (!this.previewCurve) this.curvePoint(0);
-    const t = ((progress % 1) + 1) % 1;
-    return this.previewCurve.getTangentAt(t).normalize();
+    if (!this.splineCurve) return new THREE.Vector3(1, 0, 0);
+    const t = THREE.MathUtils.clamp(progress, 0, 1);
+    return this.splineCurve.getTangentAt(t).normalize();
+  }
+
+  updateSplineFlow() {
+    if (this.morphProgress > 0.05) return;
+
+    // Stabilize the spline track orientation in world space:
+    // When FilmRing.rotation.y changes, trackGroup counter-rotates so the S-curve remains facing the camera
+    this.trackGroup.rotation.y = -(this.rotation.y - Math.PI);
+
+    const count = this.frames.length;
+    const turns = (Math.PI - this.rotation.y) / ((Math.PI * 2) / count);
+    const spread = 0.115;
+
+    this.frames.forEach((frame, index) => {
+      const relIndex = index - turns;
+      const signedOffset = ((((relIndex + count / 2) % count) + count) % count) - count / 2;
+      const t = THREE.MathUtils.clamp(0.5 + signedOffset * spread, 0.001, 0.999);
+
+      const pos = this.splineCurve.getPointAt(t);
+      const tangent = this.splineCurve.getTangentAt(t).normalize();
+      const angleY = Math.atan2(tangent.z, -tangent.x);
+      const angleZ = Math.atan2(-tangent.y, Math.hypot(tangent.x, tangent.z));
+      const roll = tangent.z * 0.12;
+
+      frame.userData.ringPosition.copy(pos);
+      frame.userData.ringRotation.set(roll, angleY, angleZ * 0.4);
+      frame.userData.pathPosition.copy(pos);
+      frame.userData.pathRotation.copy(frame.userData.ringRotation);
+      frame.userData.ringQuaternion.setFromEuler(frame.userData.ringRotation);
+      frame.userData.pathQuaternion.copy(frame.userData.ringQuaternion);
+
+      if (this.morphProgress <= 0.001) {
+        const isFocalActive = (index === this.activeIndex) && this.locked;
+        const pop = isFocalActive ? 1.025 : 1;
+        frame.position.set(pos.x * pop, pos.y, pos.z * pop);
+        frame.rotation.copy(frame.userData.ringRotation);
+
+        const distFromCenter = Math.abs(signedOffset);
+        const edgeAlpha = distFromCenter > 3.8 ? Math.max(0, 1 - (distFromCenter - 3.8) / 0.8) : 1;
+        frame.element.style.opacity = String(this.sceneOpacity * edgeAlpha);
+        frame.element.style.pointerEvents = (edgeAlpha > 0.3) ? 'auto' : 'none';
+      }
+    });
+
+    this.ribbonSegments.forEach((segment, segIdx) => {
+      const segWidth = 140;
+      const offset = (-segIdx * segWidth - turns * 80) % (40 * segWidth);
+      segment.element.style.setProperty('--hole-offset', `${offset}px`);
+    });
   }
 
   refreshGridLayout() {
@@ -202,6 +250,7 @@ export class FilmRing extends THREE.Group {
     this.morphProgress = progress;
 
     if (progress <= 0.001) {
+      this.updateSplineFlow();
       this.frames.forEach((frame) => {
         frame.position.copy(frame.userData.ringPosition);
         frame.rotation.copy(frame.userData.ringRotation);
@@ -220,6 +269,7 @@ export class FilmRing extends THREE.Group {
     const yaw = this.morphStartYaw ?? Math.PI;
     this.rotation.y = THREE.MathUtils.lerp(yaw, Math.PI, THREE.MathUtils.smoothstep(progress, 0.02, 0.9));
     this.rotation.x = THREE.MathUtils.lerp(0.15, 0.05, progress);
+    this.trackGroup.rotation.y = THREE.MathUtils.lerp(-(this.rotation.y - Math.PI), 0, curveToGrid);
 
     this.frames.forEach((frame) => {
       const { ringPosition, pathPosition, gridPosition } = frame.userData;
@@ -247,7 +297,7 @@ export class FilmRing extends THREE.Group {
       this.morphStartYaw = null;
       this.rotation.x = 0.15;
       this.frames.forEach((frame) => {
-      const selected = frame.userData.index === this.activeIndex;
+        const selected = frame.userData.index === this.activeIndex;
         frame.element.classList.toggle('is-active', selected);
         frame.element.classList.toggle('is-locked', selected && this.locked);
       });
@@ -260,6 +310,8 @@ export class FilmRing extends THREE.Group {
     if (this.activeIndex === index && this.locked === locked) return;
     this.activeIndex = index;
     this.locked = locked;
+    this.updateSplineFlow();
+
     this.frames.forEach((frame, frameIndex) => {
       const selected = frameIndex === index;
       frame.element.classList.toggle('is-active', selected);
@@ -272,13 +324,6 @@ export class FilmRing extends THREE.Group {
         gsap.set(card, { clearProps: 'filter' });
       }
       const focus = selected && locked;
-      const base = frame.userData.ringPosition;
-      const pop = focus ? 1.025 : 1;
-      gsap.to(frame.position, {
-        x: base.x * pop, z: base.z * pop,
-        duration: this.reducedMotion ? 0 : 0.32,
-        ease: focus ? 'back.out(1.15)' : 'power2.out', overwrite: true,
-      });
       const scale = focus ? (this.focusScale || 1.035) : 1;
       gsap.to(frame.scale, { x: scale, y: scale, z: scale, duration: this.reducedMotion ? 0 : 0.32, ease: 'power2.out', overwrite: true });
       if (focus && frame.element.matches(':hover')) frame.userData.focusLens(true);
@@ -304,6 +349,7 @@ export class FilmRing extends THREE.Group {
   }
 
   updateFaces(camera) {
+    this.updateSplineFlow();
     this.updateMatrixWorld(true);
     this.frames.forEach((frame) => {
       frame.getWorldPosition(this.worldPosition);
