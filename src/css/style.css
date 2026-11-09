@@ -60,8 +60,8 @@ button:disabled { cursor: wait; }
 .is-active.is-locked .film-project-card { opacity: 1; filter: blur(0px) contrast(1); background: #241508; color: #fff; border-color: #e09e45; box-shadow: 0 0 35px rgba(224,158,69,.55), 0 0 85px rgba(180,105,35,.3); }
 
 .frame-noise { position: absolute; inset: 0; z-index: 2; opacity: .035; }
-.frame-media { flex: 1; min-height: 0; background: #080503; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.card-thumb { display: block; width: 100%; height: 100%; object-fit: contain; }
+.frame-media { flex: 1; min-height: 0; background: #0c0805; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.card-thumb { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .card-info { padding: 9px 12px; flex: 0 0 78px; display: flex; flex-direction: column; gap: 3px; background: linear-gradient(180deg, #1a1007 0%, #100803 100%); border-top: 1px solid rgba(224,158,69,.2); }
 .card-cat { color: #d89f52; font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .is-locked .card-cat { color: #61513a; }
@@ -98,30 +98,45 @@ button:disabled { cursor: wait; }
 .scroll-chapter--sites { height: 100vh; }
 #about-scroll, #contact-scroll { height: 75vh; }
 
-.polaroid { width: 360px; height: 540px; padding: 16px; background: #e9e5db; color: #2a2925; border: 1px solid #f9f5e9; box-shadow: 5px 25px 50px rgba(0,0,0,.6),4px 6px 0 #aaa69b; transform-style: preserve-3d; }
-.polaroid::after { content: ''; position: absolute; inset: 0; background: url('/assets/grain.svg'); opacity: .035; pointer-events: none; }
-.polaroid > img { width: 100%; height: 296px; display: block; object-fit: cover; object-position: center 38%; filter: saturate(.85); }
-.polaroid figcaption { padding: 15px 8px 0; }
+/* 1. Transição de Projetor Antigo */
+.projector-shutter { position: fixed; inset: 0; z-index: 99; background: #000; opacity: 0; pointer-events: none; }
+
+/* 2. Foto Física Polaroid Real 1:1 */
+.polaroid { width: 380px; min-height: 505px; padding: 22px 22px 28px; background: #f4f0e6; color: #2a2925; border: 1px solid #fffdfa; box-shadow: 6px 28px 65px rgba(0,0,0,.7), 4px 6px 0 #9e9a8f; transform-style: preserve-3d; border-radius: 2px; }
+.polaroid::after { content: ''; position: absolute; inset: 0; background: url('/assets/grain.svg'); opacity: .04; pointer-events: none; border-radius: 2px; }
+.polaroid-picture-frame { width: 100%; aspect-ratio: 1 / 1; background: #13110e; border: 1px solid #0a0907; box-shadow: inset 0 2px 6px rgba(0,0,0,.65); overflow: hidden; position: relative; }
+.polaroid-photo-img, .polaroid > img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center 30%; filter: saturate(.92) contrast(1.02); }
+.polaroid-gloss { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.14) 0%, transparent 48%, rgba(0,0,0,.15) 100%); pointer-events: none; }
+.polaroid-chin, .polaroid figcaption { padding: 18px 4px 0; display: flex; flex-direction: column; gap: 3px; }
+.polaroid-signature { font-family: 'Caveat', 'Brush Script MT', 'Dancing Script', 'Segoe Script', cursive, sans-serif; font-size: 25px; color: #1c202a; line-height: 1.1; transform: rotate(-2deg); margin-bottom: 4px; letter-spacing: .01em; }
+.polaroid-date { font-size: 15px; opacity: .75; font-style: italic; }
+.polaroid-name { display: none; }
+.polaroid-role { display: block; color: #6b5c47; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.polaroid-desc { font-size: 12px; line-height: 1.55; color: #322e28; margin-top: 5px; font-weight: 450; }
+.polaroid-detail { font-size: 11px; line-height: 1.48; color: #5f574d; margin-top: 3px; }
 .polaroid h3 { font-size: 22px; letter-spacing: -.04em; font-weight: 650; }
-.polaroid-role { display: block; margin-top: 4px; color: #6d5f4c; font-size: 10px; }
-.polaroid p { font-size: 11px; line-height: 1.7; margin-top: 11px; }
+.polaroid p { font-size: 11px; line-height: 1.7; margin-top: 6px; }
 
-.site-projector { width: 440px; height: 300px; padding: 12px 16px; background: linear-gradient(135deg,#35362f,#171915); border: 3px solid #5a5b50; border-radius: 28px; box-shadow: 5px 7px 0 #080a08,0 20px 40px #0007,inset 0 1px 0 #8c8e7b; }
-.site-projector.phone-mockup-3d { position: relative; cursor: grab; touch-action: none; user-select: none; border: 6px solid #231b14; box-shadow: 0 20px 50px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.1), 0 0 0 1px #4d3a28; will-change: transform; }
+/* 4. Mockups de Celulares 3D Verticais (Sites) */
+.site-projector { width: 270px; height: 540px; padding: 14px 12px 16px; display: flex; flex-direction: column; background: linear-gradient(145deg, #25262c 0%, #121316 100%); border-radius: 40px; border: 4px solid #363942; box-shadow: 0 25px 65px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.14), inset 0 1px 2px rgba(255,255,255,0.25), 0 0 0 1px #090a0d; will-change: transform; }
+.site-projector.phone-mockup-3d { position: relative; cursor: grab; touch-action: none; user-select: none; }
 .site-projector.phone-mockup-3d:active { cursor: grabbing; }
-.phone-notch-bar { width: 70px; height: 14px; background: #000; border-radius: 12px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; }
-.phone-lens { width: 6px; height: 6px; border-radius: 50%; background: #141724; box-shadow: inset 0 0 2px #335588; }
-.phone-mic { width: 20px; height: 2.5px; border-radius: 2px; background: #252525; }
-.phone-specular-glare { position: absolute; inset: 0; border-radius: 20px; pointer-events: none; mix-blend-mode: screen; opacity: 0.45; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.16) 0%, transparent 65%); z-index: 8; transition: opacity 0.3s ease; }
-.projector-label { color: #c1c3aa; font: 9px 'Courier New',monospace; margin-bottom: 9px; }
-.projector-screen { display: block; height: 209px; background: #e6e3da; padding: 5px; border: 4px solid #11150f; box-shadow: inset 0 0 8px #0009; }
-.projector-screen img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.projector-footer { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding-top: 10px; }
-.projector-footer h3 { color: #e5e5d3; font-size: 10px; font-weight: 500; }
-.projector-footer a { padding: 6px 8px; border: 1px solid #72765f; text-decoration: none; color: #dfe2ca; font-size: 9px; white-space: nowrap; }
-.site-projector:not(.is-projected) .projector-screen { filter: brightness(.6) saturate(.6); }
-.site-projector.is-projected { border-color: #b4b796; box-shadow: 5px 7px 0 #080a08,0 0 45px #c0b37933,inset 0 1px 0 #d0d5b4; }
+.phone-notch-bar { width: 84px; height: 16px; background: #000; border-radius: 20px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.7); z-index: 10; }
+.phone-lens { width: 7px; height: 7px; border-radius: 50%; background: #0e1726; box-shadow: inset 0 0 3px #3d74c0; }
+.phone-mic { width: 24px; height: 3px; border-radius: 3px; background: #1c1c1f; }
+.phone-specular-glare { position: absolute; inset: 0; border-radius: 36px; pointer-events: none; mix-blend-mode: screen; opacity: 0.42; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 65%); z-index: 8; transition: opacity 0.3s ease; }
+.projector-label { display: none; }
+.projector-screen { flex: 1; min-height: 0; width: 100%; border-radius: 26px; overflow: hidden; background: #0a0b0d; border: 1px solid rgba(255,255,255,0.06); position: relative; box-shadow: inset 0 0 12px rgba(0,0,0,0.9); display: block; padding: 0; }
+.projector-screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.projector-footer { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; z-index: 9; }
+.projector-tag { font-size: 9px; color: #d4a76a; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+.projector-footer h3 { color: #f2f3f7; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.projector-footer p { display: none; }
+.projector-footer a { display: inline-flex; align-items: center; justify-content: center; padding: 7px 12px; border-radius: 8px; background: linear-gradient(135deg, #c99c58, #9e7539); color: #100e08; font-size: 10.5px; font-weight: 650; text-decoration: none; border: 1px solid #dfb77c; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.site-projector:not(.is-projected) .projector-screen { filter: brightness(.75) saturate(.85); }
+.site-projector.is-projected { border-color: #c59f63; box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 55px rgba(212,167,106,.25); }
 
+/* 5. Gabinete VHS e Contatos */
 .vhs-deck { width: min(900px,calc(100vw - 40px)); padding: 26px 30px 20px; border-radius: 13px; border: 2px solid #4c4f4c; background: linear-gradient(165deg,#393c39 0%,#242724 30%,#171a18 100%); box-shadow: inset 0 3px 0 #7b7d7580,inset 0 -6px 0 #0d100d,8px 12px 0 #080b08,0 45px 80px #000b; transform-style: preserve-3d; }
 .vhs-deck::before { content: ''; position: absolute; inset: 10px; border: 1px solid #6c706033; border-radius: 5px; pointer-events: none; }
 .vhs-top { display: flex; align-items: center; justify-content: space-between; color: #bebfb2; }
@@ -135,7 +150,7 @@ button:disabled { cursor: wait; }
 .vhs-display small { font-size: 8px; color: #6b9d75; }
 .power-led { display: inline-block; width: 5px; height: 5px; margin-right: 5px; border-radius: 50%; background: #a3ca87; box-shadow: 0 0 6px #96d17d; }
 .vhs-keys { display: flex; gap: 9px; padding: 14px; border: 1px solid #101810; background: #101510; box-shadow: inset 0 3px 7px #000; perspective: 700px; transform-style: preserve-3d; }
-.vhs-key { position: relative; flex: 1; min-width: 0; height: 101px; padding: 11px 5px 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border: 1px solid #4e554a; border-radius: 3px; background: linear-gradient(#4a5046,#2c332c 38%,#232b24); box-shadow: 0 7px 0 #080909,0 10px 14px #0009,inset 0 1px 0 #ffffff24; color: #ced0be; text-decoration: none; }
+.vhs-key { position: relative; flex: 1; min-width: 0; height: 101px; padding: 11px 5px 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border: 1px solid #4e554a; border-radius: 3px; background: linear-gradient(#4a5046,#2c332c 38%,#232b24); box-shadow: 0 7px 0 #080909,0 10px 14px #0009,inset 0 1px 0 #ffffff24; color: #ced0be; text-decoration: none; cursor: pointer; }
 .vhs-key::before { content: ''; position: absolute; top: 7px; right: 7px; width: 4px; height: 4px; border-radius: 50%; background: #151e12; box-shadow: inset 0 1px 2px #000; }
 .vhs-key:hover::before, .vhs-key:focus-visible::before { background: #d3af65; box-shadow: 0 0 8px #cbaa66; }
 .vhs-symbol { font-size: 16px; color: #161d16; text-shadow: 0 1px 0 #8a947d77; }
@@ -247,16 +262,10 @@ body[data-chapter="contact"] .room-floor { background: radial-gradient(ellipse,r
 #project-title { font-size: 11px; }
 
 .site-projector { background: linear-gradient(135deg,#3d3e35,#171a15); border-color: #5c6150; box-shadow: 6px 10px 0 #080b07,0 24px 48px #0009,inset 0 1px 0 #d1d5af44; }
-.site-projector::after { content: ''; position: absolute; inset: 7px; background: radial-gradient(circle at 0 0,#10150f 0 2px,transparent 2.5px),radial-gradient(circle at 100% 0,#10150f 0 2px,transparent 2.5px),radial-gradient(circle at 0 100%,#10150f 0 2px,transparent 2.5px),radial-gradient(circle at 100% 100%,#10150f 0 2px,transparent 2.5px); pointer-events: none; }
-.projector-footer h3 { font-size: 12px; }
-.projector-footer a { font-size: 11px; padding: 8px 10px; background: #303527; border-radius: 2px; }
-.projector-screen { border-color: #10170d; box-shadow: 0 0 0 1px #959b7d33,inset 0 0 10px #0009; }
-.site-projector:not(.is-projected) .projector-screen { filter: brightness(.82) saturate(.9); }
-.site-projector.is-projected { border-color: #c3c5a2; box-shadow: 6px 10px 0 #080b07,0 0 65px #ddd6a82a,inset 0 1px 0 #d4d8b6; }
+.site-projector.is-projected { border-color: #d4a76a; box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 65px rgba(212,167,106,.3); }
 
-.polaroid { box-shadow: 5px 25px 60px #0009; }
-.polaroid > img { filter: saturate(.96) contrast(1.015); }
-.polaroid h3 { font-weight: 600; }
+.polaroid { box-shadow: 6px 28px 65px rgba(0,0,0,.7), 4px 6px 0 #9e9a8f; }
+.polaroid > img { filter: saturate(.92) contrast(1.02); }
 
 .vhs-key { transition: color .18s ease; }
 .vhs-key:hover { color: #f2e5c7; }

@@ -159,9 +159,15 @@ function createFrames(assets) {
     info.append(tag, title, controls);
     card.append(media, info, noise);
 
+    on(media, 'click', (event) => {
+      if (performance.now() < (experience?.story?.suppressClickUntil || 0) || experience?.story?.dragging) return;
+      event.stopPropagation();
+      openProject(project);
+    });
+
     on(card, 'click', () => {
-      if (performance.now() < experience.story.suppressClickUntil) return;
-      if (experience.scene.film.activeIndex === index && experience.scene.film.locked) openProject(project);
+      if (performance.now() < (experience?.story?.suppressClickUntil || 0) || experience?.story?.dragging) return;
+      if (experience.scene.film.activeIndex === index) openProject(project);
       else experience.story.goToFrame(index);
     });
 

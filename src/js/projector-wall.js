@@ -3,14 +3,15 @@ import { CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
 import { gsap } from 'gsap';
 
 /**
- * Fase 3: Parede de Projetores / Mockups Físicos de Celulares 3D
- * Exibe os 4 sites desenvolvidos em smartphones 3D com volume,
- * enquadramento perfeito das imagens e rotação livre (3D Drag).
+ * Fase 3: Mockups Físicos de Smartphones 3D Verticais (Sites Desenvolvidos)
+ * Substitui monitores horizontais por mockups realistas de celulares em pé:
+ * chassis metálico chanfrado, entalhe de câmera / Dynamic Island, reflexo de vidro
+ * especular e rotação 3D interativa livre (Drag 3D).
  */
 export class ProjectorWall extends THREE.Group {
   constructor(elements) {
     super();
-    this.name = 'website-projectors';
+    this.name = 'website-phone-mockups';
     this.activeIndex = -1;
     this.compact = false;
     this.needsLayout = false;
@@ -20,11 +21,10 @@ export class ProjectorWall extends THREE.Group {
       const column = index % 2;
       const row = Math.floor(index / 2);
 
-      // Envolve cada elemento num mockup 3D com volume e detalhes de smartphone
       element.classList.add('phone-mockup-3d');
       element.style.transformStyle = 'preserve-3d';
 
-      // Cria a estrutura visual de smartphone com notch e brilho especular se não existir
+      // Cria entalhe Dynamic Island / notch no topo do smartphone
       if (!element.querySelector('.phone-notch-bar')) {
         const notch = document.createElement('div');
         notch.className = 'phone-notch-bar';
@@ -33,6 +33,7 @@ export class ProjectorWall extends THREE.Group {
         element.prepend(notch);
       }
 
+      // Reflexo de vidro especular reativo à inclinação
       if (!element.querySelector('.phone-specular-glare')) {
         const glare = document.createElement('div');
         glare.className = 'phone-specular-glare';
@@ -41,12 +42,13 @@ export class ProjectorWall extends THREE.Group {
       }
 
       const panel = new CSS3DObject(element);
-      panel.position.set((column - 0.5) * 490, (0.5 - row) * 330, column ? 20 : -20);
+      // Posiciona os smartphones verticais com espaçamento proporcional
+      panel.position.set((column - 0.5) * 360, (0.5 - row) * 580, column ? 25 : -25);
       panel.rotation.y = column ? -0.12 : 0.12;
       panel.userData.baseRotY = panel.rotation.y;
       this.add(panel);
 
-      // Rotação 3D interativa individual (Drag 3D no celular)
+      // Rotação 3D interativa individual (Drag 3D)
       this.attachPhoneDrag(element, panel);
 
       return panel;
@@ -66,9 +68,9 @@ export class ProjectorWall extends THREE.Group {
     const updateTransform = () => {
       element.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
       if (glare) {
-        const gx = 50 + rotY * 1.5;
-        const gy = 50 + rotX * 1.5;
-        glare.style.background = `radial-gradient(circle at ${gx}% ${gy}%, rgba(255,255,255,0.18) 0%, transparent 65%)`;
+        const gx = 50 + rotY * 1.6;
+        const gy = 50 + rotX * 1.6;
+        glare.style.background = `radial-gradient(circle at ${gx}% ${gy}%, rgba(255,255,255,0.22) 0%, transparent 65%)`;
       }
     };
 
@@ -88,8 +90,8 @@ export class ProjectorWall extends THREE.Group {
       startX = e.clientX;
       startY = e.clientY;
 
-      rotY = Math.max(-35, Math.min(35, rotY + dx * 0.35));
-      rotX = Math.max(-25, Math.min(25, rotX - dy * 0.35));
+      rotY = Math.max(-42, Math.min(42, rotY + dx * 0.38));
+      rotX = Math.max(-30, Math.min(30, rotX - dy * 0.38));
       updateTransform();
     }, { signal });
 
@@ -99,12 +101,12 @@ export class ProjectorWall extends THREE.Group {
       if (e?.pointerId && element.hasPointerCapture?.(e.pointerId)) {
         element.releasePointerCapture(e.pointerId);
       }
-      // Retorna suavemente para a posição frontal de descanso
+      // Retorna com rebote suave e elástico para a posição frontal
       const target = { x: rotX, y: rotY };
       gsap.to(target, {
         x: 0,
         y: 0,
-        duration: 0.6,
+        duration: 0.65,
         ease: 'back.out(1.4)',
         onUpdate: () => {
           rotX = target.x;
@@ -124,14 +126,14 @@ export class ProjectorWall extends THREE.Group {
 
     this.panels.forEach((panel, position) => {
       const active = position === index;
-      panel.element.style.opacity = String(opacity * (this.compact && !active ? 0.15 : 1));
+      panel.element.style.opacity = String(opacity * (this.compact && !active ? 0.2 : 1));
       panel.element.inert = opacity < 0.5;
       panel.element.setAttribute('aria-hidden', String(opacity < 0.5));
       panel.element.classList.toggle('is-projected', active);
 
       if (changed) {
         gsap.to(panel.position, {
-          z: active ? 70 : -24,
+          z: active ? 85 : -30,
           duration: 0.6,
           ease: 'power3.out',
           overwrite: true
@@ -163,8 +165,8 @@ export class ProjectorWall extends THREE.Group {
     this.needsLayout = this.compact !== compact;
     this.compact = compact;
     this.panels.forEach((panel, index) => {
-      panel.position.x = compact ? index * 490 : (index % 2 - 0.5) * 490;
-      panel.position.y = compact ? 0 : (0.5 - Math.floor(index / 2)) * 330;
+      panel.position.x = compact ? index * 340 : (index % 2 - 0.5) * 360;
+      panel.position.y = compact ? 0 : (0.5 - Math.floor(index / 2)) * 580;
       panel.rotation.y = compact ? 0 : index % 2 ? -0.12 : 0.12;
     });
   }

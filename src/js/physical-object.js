@@ -46,5 +46,7 @@ export function resizePhysicalObject(group, width, height) {
 
 export function setPhysicalOpacity(group, opacity) {
   group.element.style.opacity = String(opacity);
+  group.element.style.pointerEvents = opacity < 0.05 ? 'none' : 'auto';
+  group.element.inert = opacity < 0.05;
   Object.values(group.userData.shell.sides).forEach((side) => { side.element.style.opacity = String(opacity); });
 }

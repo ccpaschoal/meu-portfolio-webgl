@@ -38,7 +38,7 @@ export class FilmRing extends THREE.Group {
     this.frameWidth = width;
     this.ribbon = new THREE.Group();
     this.ribbon.name = 'translucent-amber-film-with-sprockets';
-    const segmentsPerFrame = 3;
+    const segmentsPerFrame = 4;
     const segmentCount = count * segmentsPerFrame;
     const beltRadius = radius + 1;
     const segmentWidth = 2 * beltRadius * Math.tan(Math.PI / segmentCount) + 8;
@@ -101,6 +101,7 @@ export class FilmRing extends THREE.Group {
       frame.position.set(-radius * Math.sin(angle), 0, -radius * Math.cos(angle));
       frame.rotation.y = angle;
       frame.userData.ringPosition = frame.position.clone();
+      frame.userData.base = frame.position.clone();
       frame.userData.ringRotation = frame.rotation.clone();
       const pathT = (index + 0.5) / count;
       frame.userData.pathPosition = this.curvePoint(pathT);
@@ -120,7 +121,7 @@ export class FilmRing extends THREE.Group {
         if (this.activeIndex !== index || !this.locked) return;
         frameElement.classList.toggle('is-focused', focused);
         gsap.to(element, {
-          filter: focused ? 'contrast(1.08) brightness(1.04)' : 'contrast(.84) brightness(.76)',
+          filter: focused ? 'blur(0px) contrast(1.08) brightness(1.04)' : 'blur(0px) contrast(.84) brightness(.76)',
           duration: this.reducedMotion ? 0 : 0.32,
           ease: 'power2.out', overwrite: true,
         });
@@ -194,6 +195,21 @@ export class FilmRing extends THREE.Group {
     progress = THREE.MathUtils.clamp(progress, 0, 1);
     if (progress > 0 && this.morphStartYaw === null) this.morphStartYaw = this.rotation.y;
     this.morphProgress = progress;
+
+    if (progress <= 0.001) {
+      this.frames.forEach((frame) => {
+        frame.position.copy(frame.userData.ringPosition);
+        frame.rotation.copy(frame.userData.ringRotation);
+        frame.scale.setScalar(1);
+      });
+      this.ribbonSegments.forEach((segment) => {
+        segment.position.copy(segment.userData.ringPosition);
+        segment.rotation.copy(segment.userData.ringRotation);
+        segment.element.style.opacity = String(this.sceneOpacity);
+      });
+      return;
+    }
+
     const reelToCurve = THREE.MathUtils.smoothstep(progress, 0.03, 0.55);
     const curveToGrid = THREE.MathUtils.smoothstep(progress, 0.52, 1);
     const yaw = this.morphStartYaw ?? Math.PI;

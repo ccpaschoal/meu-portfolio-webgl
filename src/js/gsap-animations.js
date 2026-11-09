@@ -31,6 +31,7 @@ export class CinematicStory {
     this.titleReadout = document.querySelector('#project-title');
     this.chapterReadout = document.querySelector('#chapter-position');
     this.cue = document.querySelector('#story-cue');
+    this.currentChapter = 'projects';
     this.clock = { progress: 0 };
     this.lastClock = 0;
 
@@ -60,14 +61,13 @@ export class CinematicStory {
       });
       this.timeline
         .to(this.state, { phase: 1, duration: 1, ease: 'none' }, 0)
-        .to(this.state, { reelMorph: 1, duration: 0.38, ease: 'none' }, 0.02)
-        .to(this.state, { reelAlpha: 0, reelDepth: -400, reelRoll: -0.12, duration: 0.1, ease: 'power1.inOut' }, 0.5)
-        .to(this.state, { wallAlpha: 1, wallDepth: 0, wallYaw: 0, duration: 0.09, ease: 'power1.out' }, 0.55)
-        .to(this.state, { wallProgress: 1, duration: 0.2, ease: 'none' }, 0.6)
-        .to(this.state, { wallAlpha: 0, wallDepth: -360, wallYaw: 0.12, duration: 0.08, ease: 'power1.in' }, 0.78)
-        .to(this.state, { photoAlpha: 1, photoReveal: 1, photoLift: 0, photoDepth: 0, duration: 0.08, ease: 'power2.out' }, 0.82)
-        .to(this.state, { photoAlpha: 0, photoLift: -90, photoDepth: -260, duration: 0.07, ease: 'power1.in' }, 0.92)
-        .to(this.state, { vhsAlpha: 1, vhsLift: 0, vhsDepth: 0, duration: 0.1, ease: 'power2.out' }, 0.95);
+        .to(this.state, { reelAlpha: 0, reelDepth: -400, reelRoll: -0.12, duration: 0.1, ease: 'power1.inOut' }, 0.4)
+        .to(this.state, { wallAlpha: 1, wallDepth: 0, wallYaw: 0, duration: 0.09, ease: 'power1.out' }, 0.45)
+        .to(this.state, { wallProgress: 1, duration: 0.2, ease: 'none' }, 0.5)
+        .to(this.state, { wallAlpha: 0, wallDepth: -360, wallYaw: 0.12, duration: 0.08, ease: 'power1.in' }, 0.68)
+        .to(this.state, { photoAlpha: 1, photoReveal: 1, photoLift: 0, photoDepth: 0, duration: 0.08, ease: 'power2.out' }, 0.72)
+        .to(this.state, { photoAlpha: 0, photoLift: -90, photoDepth: -260, duration: 0.07, ease: 'power1.in' }, 0.86)
+        .to(this.state, { vhsAlpha: 1, vhsLift: 0, vhsDepth: 0, duration: 0.1, ease: 'power2.out' }, 0.9);
     });
 
     const listen = (target, type, callback, options = {}) => target?.addEventListener(type, callback, { ...options, signal: this.events.signal });
@@ -79,7 +79,7 @@ export class CinematicStory {
       if (!event.relatedTarget?.closest?.('.film-ring-frame')) { this.hoveringReel = false; this.syncAuto(); }
     });
     listen(scene.container, 'pointerdown', (event) => {
-      if (this.suspended || this.state.phase > 0.02 || event.button !== 0 || event.target.closest?.('button, a') || !event.target.closest?.('.film-ring-frame')) return;
+      if (this.suspended || this.state.phase > 0.42 || event.button !== 0 || event.target.closest?.('button, a') || !event.target.closest?.('.film-ring-frame')) return;
       this.stopAutoImmediately();
       this.turnTween?.kill();
       this.turnTween = null;
@@ -210,10 +210,51 @@ export class CinematicStory {
 
   step(direction) { this.goToFrame(this.scene.film.activeIndex + direction); }
 
+  triggerProjectorShutter() {
+    if (this.motion.matches) return;
+    const shutter = document.querySelector('#projector-shutter');
+    const roomBeam = document.querySelector('.room-beam');
+    const roomDust = document.querySelector('.room-dust');
+    const sceneRoot = document.querySelector('#scene-root');
+
+    // 1. Corte mecânico de obturador: rápido blackout óptico de lâmina giratória
+    if (shutter) {
+      gsap.timeline()
+        .set(shutter, { opacity: 0.94 })
+        .to(shutter, { opacity: 0.15, duration: 0.04, ease: 'none' })
+        .to(shutter, { opacity: 0.85, duration: 0.03, ease: 'none' })
+        .to(shutter, { opacity: 0, duration: 0.16, ease: 'power2.out' });
+    }
+
+    // 2. Feixe de luz e poeira trepidando no corte
+    if (roomBeam) {
+      gsap.timeline()
+        .to(roomBeam, { opacity: 1, scale: 1.05, filter: 'blur(12px)', duration: 0.06, ease: 'power1.in' })
+        .to(roomBeam, { opacity: 0.7, scale: 1, filter: 'blur(20px)', duration: 0.35, ease: 'power2.out' });
+    }
+    if (roomDust) {
+      gsap.timeline()
+        .to(roomDust, { x: 10, y: -8, opacity: 0.5, duration: 0.05 })
+        .to(roomDust, { x: 0, y: 0, opacity: 0.26, duration: 0.35, ease: 'power2.out' });
+    }
+
+    // 3. Micro-desfoque óptico da lente do projetor que trava no foco nítido na hora
+    if (sceneRoot) {
+      gsap.fromTo(sceneRoot,
+        { filter: 'blur(4px) brightness(1.22) contrast(1.08)' },
+        { filter: 'blur(0px) brightness(1) contrast(1)', duration: 0.3, ease: 'power3.out', overwrite: 'auto' }
+      );
+    }
+  }
+
   applyState() {
     this.scene.applyPose(this.state);
     const phase = this.state.phase;
     const chapter = phase < 0.48 ? 'projects' : phase < 0.75 ? 'sites' : phase < 0.93 ? 'about' : 'contact';
+    if (this.currentChapter && this.currentChapter !== chapter) {
+      this.triggerProjectorShutter();
+    }
+    this.currentChapter = chapter;
     document.body.dataset.chapter = chapter;
     this.copies.forEach((copy) => copy.setAttribute('aria-hidden', String(copy.dataset.copy !== chapter)));
     const projectCopy = this.copies.find((copy) => copy.dataset.copy === 'projects');
@@ -300,12 +341,12 @@ export function playIntroduction(scene, onComplete) {
   const duration = reduced ? 0 : 2.25;
   return gsap.timeline({
     onComplete: () => {
-      scene.camera.position.z = 1100;
+      scene.camera.position.z = 1000;
       scene.camera.lookAt(0, 0, 0);
       onComplete?.();
     },
   })
     .to('#preloader', { autoAlpha: 0, duration: reduced ? 0 : 0.65, ease: 'power2.inOut' }, 0)
     .fromTo(scene.filmRig.rotation, { y: 0.16, z: -0.04 }, { y: 0, z: 0, duration, ease: 'power4.inOut' }, 0)
-    .to(scene.camera.position, { z: 1100, duration, ease: 'power4.inOut', onUpdate: () => scene.camera.lookAt(0, 0, 0) }, reduced ? 0 : 0.12);
+    .to(scene.camera.position, { z: 1000, duration, ease: 'power4.inOut', onUpdate: () => scene.camera.lookAt(0, 0, 0) }, reduced ? 0 : 0.12);
 }
