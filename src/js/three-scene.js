@@ -60,6 +60,11 @@ export class CinematicScene {
     this.vhsRig.add(this.vhs);
     this.scene.add(this.vhsRig);
 
+    // Ocultar imediatamente até seus respectivos capítulos serem ativados
+    this.wall.setState(0, 0);
+    setPhysicalOpacity(this.photo, 0);
+    setPhysicalOpacity(this.vhs, 0);
+
     // Inclinação 3D no Three.js do objeto físico da foto (Polaroid Tilt)
     this.tiltX = gsap.quickTo(this.photo.rotation, 'x', { duration: 0.5, ease: 'power3.out' });
     this.tiltY = gsap.quickTo(this.photo.rotation, 'y', { duration: 0.5, ease: 'power3.out' });
@@ -110,9 +115,9 @@ export class CinematicScene {
     const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * this.baseCamera.z;
     this.film.focusScale = THREE.MathUtils.clamp(visibleHeight / 900, 0.9, 1.06);
     this.film.refreshGridLayout();
-    const narrowScale = THREE.MathUtils.clamp(Math.min(width / 1440, height / 920) * 0.82, 0.55, 0.82);
+    const narrowScale = THREE.MathUtils.clamp(Math.min(width / 1440, height / 920) * 0.68, 0.45, 0.72);
     this.filmRig.scale.setScalar(narrowScale);
-    this.filmRig.position.y = 40;
+    this.filmRig.position.y = 80;
     const photoScale = THREE.MathUtils.clamp(Math.min(width / 520, height / 750), 0.55, 1);
     this.photoRig.scale.setScalar(photoScale);
     const vhsScale = THREE.MathUtils.clamp(Math.min(width / 1100, height / 540), 0.55, 1);

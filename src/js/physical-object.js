@@ -45,8 +45,17 @@ export function resizePhysicalObject(group, width, height) {
 }
 
 export function setPhysicalOpacity(group, opacity) {
+  const isVisible = opacity > 0.01;
+  group.visible = isVisible;
   group.element.style.opacity = String(opacity);
+  group.element.style.visibility = isVisible ? 'visible' : 'hidden';
+  group.element.style.display = isVisible ? '' : 'none';
   group.element.style.pointerEvents = opacity < 0.05 ? 'none' : 'auto';
   group.element.inert = opacity < 0.05;
-  Object.values(group.userData.shell.sides).forEach((side) => { side.element.style.opacity = String(opacity); });
+  Object.values(group.userData.shell.sides).forEach((side) => {
+    side.visible = isVisible;
+    side.element.style.opacity = String(opacity);
+    side.element.style.visibility = isVisible ? 'visible' : 'hidden';
+    side.element.style.display = isVisible ? '' : 'none';
+  });
 }
