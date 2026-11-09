@@ -1,10 +1,11 @@
 ﻿import { gsap } from 'gsap';
 import { projectsData } from '../data/projects.js';
 import { sitesData } from '../data/sites.js';
-import { contacts } from '../data/contacts.js';
 import { preloadAssets } from './preloader.js';
 import { CinematicScene } from './three-scene.js';
 import { CinematicStory, playIntroduction } from './gsap-animations.js';
+import { createProfileCard } from './profile-card.js';
+import { createVHSFooter } from './vhs-footer.js';
 
 export let experience = null;
 const events = new AbortController();
@@ -175,25 +176,7 @@ function createFrames(assets) {
   });
 }
 
-function createPortrait(assets) {
-  const photo = document.createElement('figure');
-  photo.className = 'polaroid';
-  const image = makeImage('/assets/avatar-real.jpg', 'Camilla Paschoal sorrindo', assets);
-  const caption = document.createElement('figcaption');
-  const name = document.createElement('h3');
-  name.textContent = 'Camilla Paschoal';
-  const role = document.createElement('span');
-  role.className = 'polaroid-role';
-  role.textContent = 'Web design & social media';
-  const description = document.createElement('p');
-  description.textContent = 'Sou designer de Social Media e transformo ideias em conteúdo que dá vontade de ler (e de salvar).';
-  const detail = document.createElement('p');
-  detail.className = 'polaroid-detail';
-  detail.textContent = 'Foco em carrosséis com narrativa, páginas leves e identidades que conectam marcas reais a pessoas reais.';
-  caption.append(name, role, description, detail);
-  photo.append(image, caption);
-  return photo;
-}
+
 
 function createSites(assets) {
   return sitesData.map((site) => {
@@ -231,81 +214,7 @@ function createSites(assets) {
   });
 }
 
-function createVHS() {
-  const panel = document.createElement('section');
-  panel.className = 'vhs-deck';
-  panel.setAttribute('aria-label', 'Contatos em formato de videocassete vintage');
 
-  const top = document.createElement('header');
-  top.className = 'vhs-top';
-  const brand = document.createElement('div');
-  brand.className = 'vhs-brand';
-  brand.innerHTML = 'PASCHOAL<small>HQ PRO-AUDIO</small>';
-  const format = document.createElement('div');
-  format.className = 'vhs-format';
-  format.textContent = 'HI-FI STEREO / 4-HEAD';
-  top.append(brand, format);
-
-  const middle = document.createElement('div');
-  middle.className = 'vhs-middle';
-  const slot = document.createElement('div');
-  slot.className = 'cassette-slot';
-  slot.innerHTML = '<span>▲ AUTO REVERSE CASSETTE DECK ▲</span>';
-  const display = document.createElement('div');
-  display.className = 'vhs-display';
-  display.innerHTML = '<span class="vhs-rec">● REC</span><span class="vhs-counter">SP 0:24:00</span>';
-  middle.append(slot, display);
-
-  const keys = document.createElement('div');
-  keys.className = 'vhs-keys';
-  keys.setAttribute('role', 'group');
-  keys.setAttribute('aria-label', 'Comandos do gravador e canais de contato');
-
-  const symbols = ['▶', '■', '◀◀', '▶▶', '▲'];
-  contacts.forEach((item, index) => {
-    const key = document.createElement('a');
-    key.className = 'vhs-key';
-    key.href = item.href;
-    key.target = item.href.startsWith('http') ? '_blank' : '_self';
-    key.rel = item.href.startsWith('http') ? 'noopener noreferrer' : '';
-    key.setAttribute('aria-label', `${item.label}: contato`);
-
-    const led = document.createElement('span');
-    led.className = 'vhs-led';
-    led.setAttribute('aria-hidden', 'true');
-
-    const symbol = document.createElement('span');
-    symbol.className = 'vhs-symbol';
-    symbol.textContent = symbols[index] || '▶';
-
-    const icon = document.createElement('span');
-    icon.className = 'vhs-icon';
-    icon.innerHTML = item.icon;
-
-    const label = document.createElement('span');
-    label.className = 'vhs-label';
-    label.textContent = item.label;
-
-    key.append(led, symbol, icon, label);
-
-    const press = () => {
-      gsap.to(key, { y: 4, scale: 0.98, boxShadow: '0 1px 0 #080c09, inset 0 2px 4px #000c', duration: 0.08, overwrite: 'auto' });
-      gsap.to(led, { opacity: 1, boxShadow: '0 0 10px #73d98b', duration: 0.08, overwrite: 'auto' });
-    };
-    const release = () => {
-      gsap.to(key, { y: 0, scale: 1, boxShadow: '0 5px 0 #080c09, 0 8px 12px #0008, inset 0 1px 0 #8b997c66', duration: 0.28, ease: 'back.out(2)', overwrite: 'auto' });
-      gsap.to(led, { opacity: 0.4, boxShadow: '0 0 4px #4fae64', duration: 0.2, overwrite: 'auto' });
-    };
-
-    on(key, 'pointerdown', press);
-    on(key, 'pointerup', release);
-    on(key, 'pointerleave', release);
-    keys.append(key);
-  });
-
-  panel.append(top, middle, keys);
-  return panel;
-}
 
 function openProject(project) {
   if (selectedProject || !experience.story) return;
@@ -433,8 +342,8 @@ loading.ready.then(({ assets }) => {
   const scene = new CinematicScene({
     container: sceneRoot,
     frames: createFrames(assets),
-    portrait: createPortrait(assets),
-    vhs: createVHS(),
+    portrait: createProfileCard(assets),
+    vhs: createVHSFooter(),
     sites: createSites(assets),
   });
   experience = { scene, story: null };

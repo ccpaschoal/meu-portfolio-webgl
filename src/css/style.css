@@ -106,7 +106,13 @@ button:disabled { cursor: wait; }
 .polaroid-role { display: block; margin-top: 4px; color: #6d5f4c; font-size: 10px; }
 .polaroid p { font-size: 11px; line-height: 1.7; margin-top: 11px; }
 
-.site-projector { width: 440px; height: 300px; padding: 14px 16px; background: linear-gradient(135deg,#35362f,#171915); border: 3px solid #5a5b50; border-radius: 5px; box-shadow: 5px 7px 0 #080a08,0 20px 40px #0007,inset 0 1px 0 #8c8e7b; }
+.site-projector { width: 440px; height: 300px; padding: 12px 16px; background: linear-gradient(135deg,#35362f,#171915); border: 3px solid #5a5b50; border-radius: 28px; box-shadow: 5px 7px 0 #080a08,0 20px 40px #0007,inset 0 1px 0 #8c8e7b; }
+.site-projector.phone-mockup-3d { position: relative; cursor: grab; touch-action: none; user-select: none; border: 6px solid #231b14; box-shadow: 0 20px 50px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.1), 0 0 0 1px #4d3a28; will-change: transform; }
+.site-projector.phone-mockup-3d:active { cursor: grabbing; }
+.phone-notch-bar { width: 70px; height: 14px; background: #000; border-radius: 12px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; }
+.phone-lens { width: 6px; height: 6px; border-radius: 50%; background: #141724; box-shadow: inset 0 0 2px #335588; }
+.phone-mic { width: 20px; height: 2.5px; border-radius: 2px; background: #252525; }
+.phone-specular-glare { position: absolute; inset: 0; border-radius: 20px; pointer-events: none; mix-blend-mode: screen; opacity: 0.45; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.16) 0%, transparent 65%); z-index: 8; transition: opacity 0.3s ease; }
 .projector-label { color: #c1c3aa; font: 9px 'Courier New',monospace; margin-bottom: 9px; }
 .projector-screen { display: block; height: 209px; background: #e6e3da; padding: 5px; border: 4px solid #11150f; box-shadow: inset 0 0 8px #0009; }
 .projector-screen img { display: block; width: 100%; height: 100%; object-fit: contain; }
