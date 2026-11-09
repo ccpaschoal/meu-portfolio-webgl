@@ -1,20 +1,22 @@
-﻿import { gsap } from 'gsap';
+import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
+const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+/** Page scroll changes chapters only. Reel rotation is owned by autoplay and pointer drag. */
 export class CinematicStory {
   constructor(scene) {
     this.scene = scene;
     this.events = new AbortController();
-    this.motion = matchMedia('(prefers-reduced-motion: reduce)');
+    this.motion = prefersReducedMotion;
     this.count = scene.film.frames.length;
     this.stepAngle = Math.PI * 2 / this.count;
     this.snapAngle = gsap.utils.snap(this.stepAngle);
     this.suspended = false;
     this.dragging = false;
     this.hoveringReel = false;
-    this.hoverPauseArmed = false;
     this.navigating = false;
     this.playing = !this.motion.matches;
     this.autoRunning = false;
@@ -25,8 +27,13 @@ export class CinematicStory {
     this.copies = [...document.querySelectorAll('[data-copy]')];
     this.nav = [...document.querySelectorAll('.site-header [data-chapter]')];
     this.progressBar = document.querySelector('.story-progress > span');
+    this.positionReadout = document.querySelector('#project-position');
+    this.titleReadout = document.querySelector('#project-title');
+    this.chapterReadout = document.querySelector('#chapter-position');
+    this.cue = document.querySelector('#story-cue');
     this.clock = { progress: 0 };
     this.lastClock = 0;
+
     this.context = gsap.context(() => {
       this.autoTween = gsap.to(this.clock, {
         progress: 1, duration: 38, ease: 'none', repeat: -1, paused: true,
@@ -38,7 +45,6 @@ export class CinematicStory {
           this.updateFromAngle();
         },
       });
-      this.reelTrigger = ScrollTrigger.create({ trigger: '#projects-scroll', start: 'top top', end: () => `+=${innerHeight * 1.55}` });
       this.state = {
         reelAlpha: 1, reelDepth: 0, reelRoll: 0,
         wallAlpha: 0, wallProgress: 0, wallDepth: -420, wallYaw: -0.15,
@@ -62,25 +68,25 @@ export class CinematicStory {
         .to(this.state, { photoAlpha: 0, photoLift: -90, photoDepth: -260, duration: 0.07, ease: 'power1.in' }, 0.86)
         .to(this.state, { vhsAlpha: 1, vhsLift: 0, vhsDepth: 0, duration: 0.1, ease: 'power2.out' }, 0.9);
     });
-    const listen = (target, type, callback, options = {}) => target.addEventListener(type, callback, { ...options, signal: this.events.signal });
+
+    const listen = (target, type, callback, options = {}) => target?.addEventListener(type, callback, { ...options, signal: this.events.signal });
     listen(this.playButton, 'click', () => this.setPlaying(!this.playing));
-    listen(window, 'pointermove', (event) => {
-      if (this.hoverPauseArmed || event.pointerType === 'touch') return;
-      this.hoverPauseArmed = true;
-      this.hoveringReel = Boolean(event.target.closest('.film-ring-frame'));
-      this.syncAuto();
-    });
     listen(scene.container, 'pointerover', (event) => {
-      if (this.hoverPauseArmed && event.target.closest('.film-ring-frame')) { this.hoveringReel = true; this.syncAuto(); }
+      if (event.target.closest?.('.film-ring-frame')) { this.hoveringReel = true; this.syncAuto(); }
     });
     listen(scene.container, 'pointerout', (event) => {
       if (!event.relatedTarget?.closest?.('.film-ring-frame')) { this.hoveringReel = false; this.syncAuto(); }
     });
     listen(scene.container, 'pointerdown', (event) => {
-      if (this.suspended || this.state.phase > 0.44 || event.button !== 0 || event.target.closest('button, a') || !event.target.closest('.film-ring-frame')) return;
+      if (this.suspended || this.state.phase > 0.44 || event.button !== 0 || event.target.closest?.('button, a') || !event.target.closest?.('.film-ring-frame')) return;
       this.stopAutoImmediately();
-      this.turnTween?.kill(); this.turnTween = null;
-      this.pointer = { id: event.pointerId, type: event.pointerType, x: event.clientX, y: event.clientY, lastX: event.clientX, time: performance.now(), angle: scene.film.rotation.y, velocity: 0, moved: false };
+      this.turnTween?.kill();
+      this.turnTween = null;
+      this.pointer = {
+        id: event.pointerId, type: event.pointerType, x: event.clientX, y: event.clientY,
+        lastX: event.clientX, time: performance.now(), angle: scene.film.rotation.y, velocity: 0, moved: false,
+      };
+      scene.container.setPointerCapture?.(event.pointerId);
     });
     listen(window, 'pointermove', (event) => {
       const pointer = this.pointer;
@@ -88,16 +94,20 @@ export class CinematicStory {
       const dx = event.clientX - pointer.x;
       const dy = event.clientY - pointer.y;
       if (!pointer.moved && pointer.type === 'touch' && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
-        this.pointer = null; this.syncAuto(); return;
+        this.pointer = null;
+        this.syncAuto();
+        return;
       }
-      if (!pointer.moved && Math.abs(dx) < 6) return;
-      pointer.moved = true; this.dragging = true;
+      if (!pointer.moved && Math.abs(dx) < 5) return;
+      pointer.moved = true;
+      this.dragging = true;
       scene.container.dataset.dragging = 'true';
       if (event.cancelable) event.preventDefault();
       const now = performance.now();
       pointer.velocity = (event.clientX - pointer.lastX) / Math.max(8, now - pointer.time);
-      pointer.lastX = event.clientX; pointer.time = now;
-      scene.film.rotation.y = pointer.angle + dx * 0.007;
+      pointer.lastX = event.clientX;
+      pointer.time = now;
+      scene.film.rotation.y = pointer.angle + dx * 0.0065;
       this.updateFromAngle();
     }, { passive: false });
     const release = (event) => {
@@ -108,7 +118,7 @@ export class CinematicStory {
       delete scene.container.dataset.dragging;
       if (pointer.moved) {
         this.suppressClickUntil = performance.now() + 350;
-        const momentum = gsap.utils.clamp(-0.45, 0.45, pointer.velocity * 0.12);
+        const momentum = gsap.utils.clamp(-0.42, 0.42, pointer.velocity * 0.12);
         this.selectAngle(scene.film.rotation.y + momentum);
       } else this.syncAuto();
     };
@@ -121,17 +131,21 @@ export class CinematicStory {
       this.timeline.scrollTrigger.refresh();
     });
     listen(window, 'keydown', (event) => {
-      if (this.suspended || this.state.phase > 0.44 || event.target.closest('button, a, input, textarea')) return;
+      if (this.suspended || this.state.phase > 0.44 || event.target.closest?.('button, a, input, textarea')) return;
       if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-        event.preventDefault(); this.step(event.key === 'ArrowRight' ? 1 : -1);
+        event.preventDefault();
+        this.step(event.key === 'ArrowRight' ? 1 : -1);
       }
     });
-    this.updateFromAngle(); this.applyState(); this.setPlaying(this.playing);
+    this.updateFromAngle();
+    this.applyState();
+    this.setPlaying(this.playing);
   }
 
   stopAutoImmediately() {
+    this.autoTween.pause();
     gsap.killTweensOf(this.autoTween);
-    this.autoTween.pause().timeScale(0);
+    this.autoTween.timeScale(0);
     this.autoRunning = false;
   }
 
@@ -142,14 +156,18 @@ export class CinematicStory {
     gsap.killTweensOf(this.autoTween);
     if (running) {
       this.autoTween.play();
-      gsap.to(this.autoTween, { timeScale: 1, duration: 0.45, ease: 'sine.inOut' });
+      gsap.to(this.autoTween, { timeScale: 1, duration: 0.4, ease: 'sine.inOut', overwrite: true });
     } else {
-      gsap.to(this.autoTween, { timeScale: 0, duration: 0.22, ease: 'power2.out', onComplete: () => { if (!this.autoRunning) this.autoTween.pause(); } });
+      gsap.to(this.autoTween, {
+        timeScale: 0, duration: 0.2, ease: 'power2.out', overwrite: true,
+        onComplete: () => { if (!this.autoRunning) this.autoTween.pause(); },
+      });
     }
   }
 
   setPlaying(value) {
     this.playing = Boolean(value) && !this.motion.matches;
+    if (!this.playButton) return;
     this.playButton.setAttribute('aria-pressed', String(this.playing));
     this.playButton.setAttribute('aria-label', this.playing ? 'Pausar giro da fita' : 'Reproduzir giro da fita');
     this.playButton.textContent = this.playing ? 'Ⅱ' : '▶';
@@ -162,8 +180,8 @@ export class CinematicStory {
     const index = ((nearest % this.count) + this.count) % this.count;
     const locked = !this.dragging && !this.turnTween?.isActive() && Math.abs(turns - nearest) < 0.19;
     this.scene.film.setActive(index, locked);
-    document.querySelector('#project-position').textContent = `${String(index + 1).padStart(2, '0')} / ${this.count}`;
-    document.querySelector('#project-title').textContent = this.scene.film.frames[index].element.querySelector('.card-name').textContent;
+    if (this.positionReadout) this.positionReadout.textContent = `${String(index + 1).padStart(2, '0')} / ${this.count}`;
+    if (this.titleReadout) this.titleReadout.textContent = this.scene.film.frames[index].element.querySelector('.card-name')?.textContent ?? '';
   }
 
   selectAngle(angle) {
@@ -182,7 +200,8 @@ export class CinematicStory {
     const target = base + Math.round((current - base) / (Math.PI * 2)) * Math.PI * 2;
     this.scene.film.setActive(this.scene.film.activeIndex, false);
     this.turnTween = gsap.to(this.scene.film.rotation, {
-      y: target, duration: animate && !this.motion.matches ? 0.6 : 0, ease: 'back.out(0.9)', overwrite: 'auto',
+      y: target, duration: animate && !this.motion.matches ? 0.62 : 0,
+      ease: 'back.out(1.05)', overwrite: 'auto',
       onUpdate: () => this.updateFromAngle(),
       onComplete: () => { this.turnTween = null; this.updateFromAngle(); this.syncAuto(); },
     });
@@ -200,52 +219,88 @@ export class CinematicStory {
       if (link.dataset.chapter === chapter) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
-    this.transport.inert = chapter !== 'projects';
-    this.transport.classList.toggle('is-hidden', chapter !== 'projects');
-    this.progressBar.style.transform = `scaleX(${phase})`;
+    if (this.transport) {
+      this.transport.inert = chapter !== 'projects';
+      this.transport.classList.toggle('is-hidden', chapter !== 'projects');
+    }
+    if (this.progressBar) this.progressBar.style.transform = `scaleX(${phase})`;
     const number = { projects: '01', sites: '02', about: '03', contact: '04' }[chapter];
-    document.querySelector('#chapter-position').textContent = `${number} — 04`;
-    document.querySelector('#story-cue').textContent = { projects: 'Gira sozinha · passe o mouse ou arraste', sites: 'Role para explorar os sites', about: 'Mova o mouse sobre a foto', contact: 'Sua próxima ideia começa aqui' }[chapter];
+    if (this.chapterReadout) this.chapterReadout.textContent = `${number} — 04`;
+    if (this.cue) this.cue.textContent = { projects: 'Gira sozinha · passe o mouse ou arraste', sites: 'Role para explorar os sites', about: 'Mova o mouse sobre a foto', contact: 'Sua próxima ideia começa aqui' }[chapter];
     this.syncAuto();
   }
 
   goToChapter(chapter, animate = false) {
     const fraction = { projects: 0, sites: 0.6, about: 0.82, contact: 1 }[chapter];
     if (fraction === undefined) return;
-    this.pointer = null; this.dragging = false; delete this.scene.container.dataset.dragging;
-    this.navigating = true; this.syncAuto();
-    this.navigationTween?.kill(); this.turnTween?.kill(); this.turnTween = null;
+    this.pointer = null;
+    this.dragging = false;
+    delete this.scene.container.dataset.dragging;
+    this.navigating = true;
+    this.syncAuto();
+    this.navigationTween?.kill();
+    this.turnTween?.kill();
+    this.turnTween = null;
     const trigger = this.timeline.scrollTrigger;
     const target = trigger.start + (trigger.end - trigger.start) * fraction;
     const finish = () => { this.navigating = false; this.syncAuto(); };
-    if (!animate || this.motion.matches) { window.scrollTo({ top: target, behavior: 'instant' }); ScrollTrigger.update(); finish(); return; }
-    const driver = { y: scrollY };
+    if (!animate || this.motion.matches) {
+      window.scrollTo({ top: target, behavior: 'instant' });
+      ScrollTrigger.update();
+      finish();
+      return;
+    }
+    const driver = { y: window.scrollY };
     this.navigationTween = gsap.to(driver, {
       y: target, duration: 0.85, ease: 'power3.inOut',
-      onUpdate: () => { window.scrollTo(0, driver.y); ScrollTrigger.update(); }, onComplete: finish,
+      onUpdate: () => { window.scrollTo(0, driver.y); ScrollTrigger.update(); },
+      onComplete: finish,
     });
   }
 
   suspend() {
-    this.suspended = true; this.pointer = null; this.dragging = false;
-    this.turnTween?.kill(); this.turnTween = null; this.navigationTween?.kill(); this.navigating = false;
-    this.stopAutoImmediately(); this.timeline.scrollTrigger.disable(false);
+    this.suspended = true;
+    this.pointer = null;
+    this.dragging = false;
+    this.turnTween?.kill();
+    this.turnTween = null;
+    this.navigationTween?.kill();
+    this.navigating = false;
+    this.stopAutoImmediately();
+    this.timeline.scrollTrigger.disable(false);
   }
 
   resume() {
-    this.suspended = false; this.timeline.scrollTrigger.enable(false, false); ScrollTrigger.update(); this.syncAuto();
+    this.suspended = false;
+    this.timeline.scrollTrigger.enable(false, false);
+    ScrollTrigger.update();
+    this.syncAuto();
   }
 
   destroy() {
-    this.events.abort(); this.turnTween?.kill(); this.navigationTween?.kill();
-    gsap.killTweensOf(this.autoTween); this.context.revert();
+    this.events.abort();
+    this.turnTween?.kill();
+    this.navigationTween?.kill();
+    this.autoTween?.kill();
+    this.context.revert();
   }
 }
 
+/** Start RAF rendering and fly from the intro distance without linking reel rotation to page scroll. */
 export function playIntroduction(scene, onComplete) {
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  return gsap.timeline({ onComplete })
+  const reduced = prefersReducedMotion.matches;
+  scene.renderReady = true;
+  scene.camera.position.z = 2500;
+  scene.camera.lookAt(0, 0, 0);
+  const duration = reduced ? 0 : 2.25;
+  return gsap.timeline({
+    onComplete: () => {
+      scene.camera.position.z = 1100;
+      scene.camera.lookAt(0, 0, 0);
+      onComplete?.();
+    },
+  })
     .to('#preloader', { autoAlpha: 0, duration: reduced ? 0 : 0.65, ease: 'power2.inOut' }, 0)
-    .fromTo(scene.filmRig.rotation, { y: 0.16, z: -0.04 }, { y: 0, z: 0, duration: reduced ? 0 : 2.25, ease: 'power4.inOut' }, 0)
-    .to(scene.camera.position, { z: 1000, duration: reduced ? 0 : 2.25, ease: 'power4.inOut', onUpdate: () => scene.camera.lookAt(0, 0, 0) }, reduced ? 0 : 0.12);
+    .fromTo(scene.filmRig.rotation, { y: 0.16, z: -0.04 }, { y: 0, z: 0, duration, ease: 'power4.inOut' }, 0)
+    .to(scene.camera.position, { z: 1100, duration, ease: 'power4.inOut', onUpdate: () => scene.camera.lookAt(0, 0, 0) }, reduced ? 0 : 0.12);
 }
