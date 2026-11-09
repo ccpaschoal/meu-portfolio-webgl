@@ -4,14 +4,14 @@ import { gsap } from 'gsap';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** Continuous 35mm-style organic S-spline. CSS3DRenderer owns the wrapper matrices. */
+/** Continuous 35mm-style organic panoramic S-spline arc. CSS3DRenderer owns the wrapper matrices. */
 export class FilmRing extends THREE.Group {
-  constructor(elements, { radius = 790, height = 340, tilt = 0.15 } = {}) {
+  constructor(elements, { radius = 1350, height = 340, tilt = 0.15 } = {}) {
     super();
     if (!Array.isArray(elements) || elements.length !== 10) {
       throw new RangeError('The film ring expects exactly ten carousel frames.');
     }
-    this.name = 'continuous-35mm-film-spline';
+    this.name = 'panoramic-35mm-film-arc';
     this.radius = radius;
     this.height = height;
     this.reducedMotion = reducedMotion();
@@ -31,21 +31,22 @@ export class FilmRing extends THREE.Group {
     this.frames = [];
     this.sceneOpacity = 1;
 
-    // Track group ensures the S-spline retains an organic, stabilized path across screen
+    // Track group ensures the panoramic arc maintains a stable, facing orientation in world space
     this.trackGroup = new THREE.Group();
-    this.trackGroup.name = 'film-spline-track';
+    this.trackGroup.name = 'film-panoramic-track';
     this.add(this.trackGroup);
 
-    // 1. Trajetória 3D Contínua em "S" com profundidade real no eixo Z
-    // t = 0.5 é o centro frontal focal (Z = -480 local, virando Z = +480 no mundo de frente para a câmera)
+    // 1. Remodelação em Arco Panorâmico Aberto Elíptico (raio virtual expandido >= 1250px)
+    // Curvatura suave que previne colisão euclidiana e clipping de bordas de cartões vizinhos
+    // Centro frontal focal em Z = -480 (em mundo Z = +480 de frente para a câmera)
     this.splineCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(1200, 140, 220),
-      new THREE.Vector3(700, 75, -80),
-      new THREE.Vector3(280, 25, -360),
-      new THREE.Vector3(0, 0, -480),        // Centro frontal em foco nítido na câmera
-      new THREE.Vector3(-280, -25, -360),
-      new THREE.Vector3(-700, -75, -80),
-      new THREE.Vector3(-1200, -140, 220),
+      new THREE.Vector3(2200, 70, 780),
+      new THREE.Vector3(1450, 40, 240),
+      new THREE.Vector3(720, 15, -280),
+      new THREE.Vector3(0, 0, -480),        // Centro focal frontal em destaque
+      new THREE.Vector3(-720, -15, -280),
+      new THREE.Vector3(-1450, -40, 240),
+      new THREE.Vector3(-2200, -70, 780),
     ], false, 'catmullrom', 0.5);
     this.splineCurve.arcLengthDivisions = 400;
 
@@ -58,6 +59,8 @@ export class FilmRing extends THREE.Group {
     const segmentCount = count * segmentsPerFrame; // 40 pares = 80 segmentos (>= 64)
     const segmentWidth = 140;
 
+    // Fita Kodak Safety Film 35mm: Envelopa o fundo dos cartões em camada Z inferior (+55px atrás),
+    // sem penetrar nem atravessar as superfícies das artes dos projetos.
     for (let index = 0; index < segmentCount; index += 1) {
       const tSeg = (index + 0.5) / segmentCount;
       const posSeg = this.splineCurve.getPointAt(tSeg);
@@ -71,17 +74,20 @@ export class FilmRing extends THREE.Group {
         strip.setAttribute('aria-hidden', 'true');
         strip.style.width = `${segmentWidth}px`;
         strip.style.pointerEvents = 'none';
+        strip.style.zIndex = '5'; // Camada Z inferior aos cartões
         strip.style.background = 'linear-gradient(180deg, rgba(38, 22, 11, 0.76) 0%, rgba(18, 10, 4, 0.85) 100%)';
         strip.style.borderColor = 'rgba(222, 157, 73, 0.38)';
         strip.style.setProperty('--hole-offset', `${-index * segmentWidth}px`);
         const object = new CSS3DObject(strip);
-        object.position.set(posSeg.x, posSeg.y + edge * (height / 2 - 10), posSeg.z);
-        object.rotation.set(0, angleY, angleZ * 0.4);
+        // posSeg.z + 55 situa a fita atrás da superfície dos cartões, contornando o fundo
+        object.position.set(posSeg.x, posSeg.y + edge * (height / 2 + 18), posSeg.z + 55);
+        object.rotation.set(0, angleY, angleZ * 0.35);
         object.userData.ringPosition = object.position.clone();
         object.userData.ringRotation = object.rotation.clone();
         object.userData.pathT = tSeg;
         object.userData.pathPosition = posSeg.clone();
-        object.userData.pathPosition.y += edge * (height / 2 - 10);
+        object.userData.pathPosition.y += edge * (height / 2 + 18);
+        object.userData.pathPosition.z += 55;
         object.userData.pathRotation = object.rotation.clone();
         object.userData.ringQuaternion = new THREE.Quaternion().setFromEuler(object.userData.ringRotation);
         object.userData.pathQuaternion = new THREE.Quaternion().setFromEuler(object.userData.pathRotation);
@@ -167,45 +173,63 @@ export class FilmRing extends THREE.Group {
   updateSplineFlow() {
     if (this.morphProgress > 0.05) return;
 
-    // Stabilize the spline track orientation in world space:
-    // When FilmRing.rotation.y changes, trackGroup counter-rotates so the S-curve remains facing the camera
+    // Estabiliza a orientação do arco panorâmico no espaço mundial (de frente para a câmera)
     this.trackGroup.rotation.y = -(this.rotation.y - Math.PI);
 
     const count = this.frames.length;
     const turns = (Math.PI - this.rotation.y) / ((Math.PI * 2) / count);
-    const spread = 0.115;
+    const spread = 0.12;
 
     this.frames.forEach((frame, index) => {
       const relIndex = index - turns;
       const signedOffset = ((((relIndex + count / 2) % count) + count) % count) - count / 2;
+      const dist = Math.abs(signedOffset);
       const t = THREE.MathUtils.clamp(0.5 + signedOffset * spread, 0.001, 0.999);
 
       const pos = this.splineCurve.getPointAt(t);
       const tangent = this.splineCurve.getTangentAt(t).normalize();
       const angleY = Math.atan2(tangent.z, -tangent.x);
       const angleZ = Math.atan2(-tangent.y, Math.hypot(tangent.x, tangent.z));
-      const roll = tangent.z * 0.12;
+      const roll = tangent.z * 0.06;
 
-      frame.userData.ringPosition.copy(pos);
-      frame.userData.ringRotation.set(roll, angleY, angleZ * 0.4);
-      frame.userData.pathPosition.copy(pos);
+      // Depth Stacking & Hierarquia Z Dinâmica:
+      // Slide central ativo: escala 1.0, posição Z à frente em destaque, 100% de opacidade e pointer-events: auto.
+      // Slides vizinhos laterais: recuo progressivo no eixo Z para trás (+Z local), escala reduzida (0.82 no primeiro, 0.65 nos seguintes) e fade (1.0 -> 0.5 -> 0.15).
+      const zRecess = dist * 95;
+      const isFocalActive = (index === this.activeIndex) && this.locked;
+      const popZ = isFocalActive ? -30 : 0; // Traz o slide ativo à frente
+
+      const scaleFactor = dist <= 1
+        ? THREE.MathUtils.lerp(1.0, 0.82, dist)
+        : THREE.MathUtils.lerp(0.82, 0.65, Math.min(1, dist - 1));
+      const finalScale = (isFocalActive ? (this.focusScale || 1.035) : 1) * scaleFactor;
+
+      const opacityFactor = dist <= 1
+        ? THREE.MathUtils.lerp(1.0, 0.52, dist)
+        : (dist <= 2
+          ? THREE.MathUtils.lerp(0.52, 0.15, dist - 1)
+          : THREE.MathUtils.lerp(0.15, 0.0, Math.min(1, (dist - 2) / 1.1)));
+
+      frame.userData.ringPosition.set(pos.x, pos.y, pos.z + zRecess + popZ);
+      frame.userData.ringRotation.set(roll, angleY, angleZ * 0.35);
+      frame.userData.pathPosition.copy(frame.userData.ringPosition);
       frame.userData.pathRotation.copy(frame.userData.ringRotation);
       frame.userData.ringQuaternion.setFromEuler(frame.userData.ringRotation);
       frame.userData.pathQuaternion.copy(frame.userData.ringQuaternion);
 
       if (this.morphProgress <= 0.001) {
-        const isFocalActive = (index === this.activeIndex) && this.locked;
-        const pop = isFocalActive ? 1.025 : 1;
-        frame.position.set(pos.x * pop, pos.y, pos.z * pop);
+        frame.position.copy(frame.userData.ringPosition);
         frame.rotation.copy(frame.userData.ringRotation);
+        frame.scale.setScalar(finalScale);
 
-        const distFromCenter = Math.abs(signedOffset);
-        const edgeAlpha = distFromCenter > 3.8 ? Math.max(0, 1 - (distFromCenter - 3.8) / 0.8) : 1;
-        frame.element.style.opacity = String(this.sceneOpacity * edgeAlpha);
-        frame.element.style.pointerEvents = (edgeAlpha > 0.3) ? 'auto' : 'none';
+        // Hierarquia Z estrita (z-index DOM + pointer-events)
+        frame.element.style.zIndex = String(Math.round(100 - dist * 20));
+        frame.element.style.opacity = String(this.sceneOpacity * opacityFactor);
+        frame.element.style.pointerEvents = (dist < 0.48 && opacityFactor > 0.4) ? 'auto' : 'none';
       }
     });
 
+    // Fita Kodak Safety Film: perfurações rolam continuamente acompanhando a curvatura
     this.ribbonSegments.forEach((segment, segIdx) => {
       const segWidth = 140;
       const offset = (-segIdx * segWidth - turns * 80) % (40 * segWidth);
@@ -323,10 +347,7 @@ export class FilmRing extends THREE.Group {
         gsap.killTweensOf(card);
         gsap.set(card, { clearProps: 'filter' });
       }
-      const focus = selected && locked;
-      const scale = focus ? (this.focusScale || 1.035) : 1;
-      gsap.to(frame.scale, { x: scale, y: scale, z: scale, duration: this.reducedMotion ? 0 : 0.32, ease: 'power2.out', overwrite: true });
-      if (focus && frame.element.matches(':hover')) frame.userData.focusLens(true);
+      if (selected && locked && frame.element.matches(':hover')) frame.userData.focusLens(true);
     });
     gsap.to(this, { energy: locked ? 0.9 : 0.28, duration: this.reducedMotion ? 0 : 0.25, overwrite: 'auto' });
   }
