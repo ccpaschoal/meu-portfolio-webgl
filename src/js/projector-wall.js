@@ -4,9 +4,9 @@ import { gsap } from 'gsap';
 
 /**
  * Fase 3: Mockups Físicos de Smartphones 3D Verticais (Sites Desenvolvidos)
- * Substitui monitores horizontais por mockups realistas de celulares em pé:
- * chassis metálico chanfrado, entalhe de câmera / Dynamic Island, reflexo de vidro
- * especular e rotação 3D interativa livre (Drag 3D).
+ * Dispostos em uma elegante fileira panorâmica em arco 3D.
+ * Chassis metálico chanfrado, entalhe de câmera / Dynamic Island,
+ * prints mobile autênticos e rotação 3D interativa livre (Drag 3D).
  */
 export class ProjectorWall extends THREE.Group {
   constructor(elements) {
@@ -17,10 +17,9 @@ export class ProjectorWall extends THREE.Group {
     this.needsLayout = false;
     this.events = new AbortController();
 
-    this.panels = elements.map((element, index) => {
-      const column = index % 2;
-      const row = Math.floor(index / 2);
+    const count = elements.length;
 
+    this.panels = elements.map((element, index) => {
       element.classList.add('phone-mockup-3d');
       element.style.transformStyle = 'preserve-3d';
 
@@ -42,13 +41,23 @@ export class ProjectorWall extends THREE.Group {
       }
 
       const panel = new CSS3DObject(element);
-      // Posiciona os smartphones verticais com espaçamento proporcional
-      panel.position.set((column - 0.5) * 360, (0.5 - row) * 580, column ? 25 : -25);
-      panel.rotation.y = column ? -0.12 : 0.12;
-      panel.userData.baseRotY = panel.rotation.y;
+      // Posição panorâmica em linha (lado a lado) com arco suave
+      const offset = index - (count - 1) / 2; // -1.5, -0.5, 0.5, 1.5
+      const baseX = offset * 290;
+      const baseZ = -Math.abs(offset) * 28;
+      const baseRotY = -offset * 0.08;
+
+      panel.position.set(baseX, -10, baseZ);
+      panel.rotation.set(0, baseRotY, 0);
+
+      panel.userData.baseX = baseX;
+      panel.userData.baseZ = baseZ;
+      panel.userData.baseRotY = baseRotY;
+      panel.userData.index = index;
+
       this.add(panel);
 
-      // Rotação 3D interativa individual (Drag 3D)
+      // Rotação 3D interativa individual (Drag 3D) direto no CSS3DObject do Three.js
       this.attachPhoneDrag(element, panel);
 
       return panel;
@@ -66,11 +75,12 @@ export class ProjectorWall extends THREE.Group {
     const glare = element.querySelector('.phone-specular-glare');
 
     const updateTransform = () => {
-      element.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+      panel.rotation.x = rotX;
+      panel.rotation.y = panel.userData.baseRotY + rotY;
       if (glare) {
-        const gx = 50 + rotY * 1.6;
-        const gy = 50 + rotX * 1.6;
-        glare.style.background = `radial-gradient(circle at ${gx}% ${gy}%, rgba(255,255,255,0.22) 0%, transparent 65%)`;
+        const gx = 50 + THREE.MathUtils.radToDeg(rotY) * 1.5;
+        const gy = 50 + THREE.MathUtils.radToDeg(rotX) * 1.5;
+        glare.style.background = `radial-gradient(circle at ${gx}% ${gy}%, rgba(255,255,255,0.24) 0%, transparent 65%)`;
       }
     };
 
@@ -80,7 +90,7 @@ export class ProjectorWall extends THREE.Group {
       startX = e.clientX;
       startY = e.clientY;
       element.setPointerCapture?.(e.pointerId);
-      gsap.killTweensOf(element);
+      gsap.killTweensOf(panel.rotation);
     }, { signal });
 
     window.addEventListener('pointermove', (e) => {
@@ -90,8 +100,8 @@ export class ProjectorWall extends THREE.Group {
       startX = e.clientX;
       startY = e.clientY;
 
-      rotY = Math.max(-42, Math.min(42, rotY + dx * 0.38));
-      rotX = Math.max(-30, Math.min(30, rotX - dy * 0.38));
+      rotY = THREE.MathUtils.clamp(rotY + dx * 0.0035, -0.45, 0.45);
+      rotX = THREE.MathUtils.clamp(rotX - dy * 0.0035, -0.35, 0.35);
       updateTransform();
     }, { signal });
 
@@ -101,7 +111,7 @@ export class ProjectorWall extends THREE.Group {
       if (e?.pointerId && element.hasPointerCapture?.(e.pointerId)) {
         element.releasePointerCapture(e.pointerId);
       }
-      // Retorna com rebote suave e elástico para a posição frontal
+      // Retorna com rebote suave e elástico para a rotação base
       const target = { x: rotX, y: rotY };
       gsap.to(target, {
         x: 0,
@@ -132,15 +142,12 @@ export class ProjectorWall extends THREE.Group {
       panel.element.classList.toggle('is-projected', active);
 
       if (changed) {
+        const targetZ = this.compact
+          ? (active ? 60 : -40)
+          : panel.userData.baseZ + (active ? 65 : 0);
         gsap.to(panel.position, {
-          z: active ? 85 : -30,
-          duration: 0.6,
-          ease: 'power3.out',
-          overwrite: true
-        });
-        gsap.to(panel.rotation, {
-          y: active || this.compact ? 0 : position % 2 ? -0.15 : 0.15,
-          duration: 0.6,
+          z: targetZ,
+          duration: 0.55,
           ease: 'power3.out',
           overwrite: true
         });
@@ -150,10 +157,12 @@ export class ProjectorWall extends THREE.Group {
     this.activeIndex = index;
     const target = this.panels[index];
     if (changed && target) {
+      const targetX = this.compact
+        ? -target.position.x
+        : -target.position.x * 0.12;
       gsap.to(this.position, {
-        x: -target.position.x * (this.compact ? 1 : 0.08),
-        y: this.compact ? 0 : -target.position.y * 0.08,
-        duration: 0.6,
+        x: targetX,
+        duration: 0.55,
         ease: 'power3.out',
         overwrite: true,
       });
@@ -165,9 +174,15 @@ export class ProjectorWall extends THREE.Group {
     this.needsLayout = this.compact !== compact;
     this.compact = compact;
     this.panels.forEach((panel, index) => {
-      panel.position.x = compact ? index * 340 : (index % 2 - 0.5) * 360;
-      panel.position.y = compact ? 0 : (0.5 - Math.floor(index / 2)) * 580;
-      panel.rotation.y = compact ? 0 : index % 2 ? -0.12 : 0.12;
+      if (compact) {
+        panel.position.x = index * 300;
+        panel.position.y = 0;
+        panel.rotation.y = 0;
+      } else {
+        panel.position.x = panel.userData.baseX;
+        panel.position.y = -10;
+        panel.rotation.y = panel.userData.baseRotY;
+      }
     });
   }
 

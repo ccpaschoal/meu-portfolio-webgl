@@ -118,21 +118,21 @@ button:disabled { cursor: wait; }
 .polaroid p { font-size: 11px; line-height: 1.7; margin-top: 6px; }
 
 /* 4. Mockups de Celulares 3D Verticais (Sites) */
-.site-projector { width: 270px; height: 540px; padding: 14px 12px 16px; display: flex; flex-direction: column; background: linear-gradient(145deg, #25262c 0%, #121316 100%); border-radius: 40px; border: 4px solid #363942; box-shadow: 0 25px 65px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.14), inset 0 1px 2px rgba(255,255,255,0.25), 0 0 0 1px #090a0d; will-change: transform; }
+.site-projector { width: 240px; height: 480px; padding: 12px 10px 14px; display: flex; flex-direction: column; background: linear-gradient(145deg, #25262c 0%, #121316 100%); border-radius: 36px; border: 3.5px solid #363942; box-shadow: 0 22px 55px rgba(0,0,0,0.85), inset 0 0 0 1px rgba(255,255,255,0.14), inset 0 1px 2px rgba(255,255,255,0.25), 0 0 0 1px #090a0d; will-change: transform; }
 .site-projector.phone-mockup-3d { position: relative; cursor: grab; touch-action: none; user-select: none; }
 .site-projector.phone-mockup-3d:active { cursor: grabbing; }
-.phone-notch-bar { width: 84px; height: 16px; background: #000; border-radius: 20px; margin: 0 auto 10px; display: flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.7); z-index: 10; }
+.phone-notch-bar { width: 76px; height: 14px; background: #000; border-radius: 16px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.7); z-index: 10; }
 .phone-lens { width: 7px; height: 7px; border-radius: 50%; background: #0e1726; box-shadow: inset 0 0 3px #3d74c0; }
-.phone-mic { width: 24px; height: 3px; border-radius: 3px; background: #1c1c1f; }
-.phone-specular-glare { position: absolute; inset: 0; border-radius: 36px; pointer-events: none; mix-blend-mode: screen; opacity: 0.42; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 65%); z-index: 8; transition: opacity 0.3s ease; }
+.phone-mic { width: 22px; height: 3px; border-radius: 3px; background: #1c1c1f; }
+.phone-specular-glare { position: absolute; inset: 0; border-radius: 32px; pointer-events: none; mix-blend-mode: screen; opacity: 0.42; background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.2) 0%, transparent 65%); z-index: 8; transition: opacity 0.3s ease; }
 .projector-label { display: none; }
-.projector-screen { flex: 1; min-height: 0; width: 100%; border-radius: 26px; overflow: hidden; background: #0a0b0d; border: 1px solid rgba(255,255,255,0.06); position: relative; box-shadow: inset 0 0 12px rgba(0,0,0,0.9); display: block; padding: 0; }
+.projector-screen { flex: 1; min-height: 0; width: 100%; border-radius: 22px; overflow: hidden; background: #0a0b0d; border: 1px solid rgba(255,255,255,0.06); position: relative; box-shadow: inset 0 0 12px rgba(0,0,0,0.9); display: block; padding: 0; }
 .projector-screen img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-.projector-footer { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; z-index: 9; }
-.projector-tag { font-size: 9px; color: #d4a76a; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-.projector-footer h3 { color: #f2f3f7; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.projector-footer { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; z-index: 9; }
+.projector-tag { font-size: 8.5px; color: #d4a76a; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.projector-footer h3 { color: #f2f3f7; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .projector-footer p { display: none; }
-.projector-footer a { display: inline-flex; align-items: center; justify-content: center; padding: 7px 12px; border-radius: 8px; background: linear-gradient(135deg, #c99c58, #9e7539); color: #100e08; font-size: 10.5px; font-weight: 650; text-decoration: none; border: 1px solid #dfb77c; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.projector-footer a { display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px; border-radius: 6px; background: linear-gradient(135deg, #c99c58, #9e7539); color: #100e08; font-size: 10px; font-weight: 650; text-decoration: none; border: 1px solid #dfb77c; box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
 .site-projector:not(.is-projected) .projector-screen { filter: brightness(.75) saturate(.85); }
 .site-projector.is-projected { border-color: #c59f63; box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 55px rgba(212,167,106,.25); }
 
@@ -256,12 +256,12 @@ body[data-chapter="contact"] .room-floor { background: radial-gradient(ellipse,r
 .inline-carousel-controls .frame-open { font-size: 11px; padding: 8px; min-width: 100%; margin: 0; background: #d4be96; color: #221e16; }
 .inline-carousel-controls span { font-size: 12px; }
 
-.project-transport { bottom: 52px; padding: 10px; border-color: #62543c; border-radius: 8px; background: linear-gradient(145deg,rgba(41,35,25,.95),rgba(14,14,11,.95)); box-shadow: 0 12px 32px #0008,inset 0 1px 0 #c5aa7833; gap: 12px; }
+.project-transport { bottom: 52px; padding: 10px; border-color: #62543c; border-radius: 8px; background: linear-gradient(145deg,rgba(41,35,25,.95),rgba(14,14,11,.95)); box-shadow: 0 12px 32px #0008,inset 0 1px 0 #c5aa7833; gap: 12px; transition: opacity .25s ease, transform .25s ease, visibility .25s ease; }
+.project-transport.is-hidden { opacity: 0 !important; pointer-events: none !important; visibility: hidden !important; transform: translateY(20px) !important; }
 .project-transport button { border-radius: 4px; width: 40px; height: 40px; box-shadow: inset 0 1px 0 #b6a48033,0 2px 0 #090906; }
 #reel-play-toggle { border-left-color: #b49662; background: #463820; color: #efd3a1; }
 #project-title { font-size: 11px; }
 
-.site-projector { background: linear-gradient(135deg,#3d3e35,#171a15); border-color: #5c6150; box-shadow: 6px 10px 0 #080b07,0 24px 48px #0009,inset 0 1px 0 #d1d5af44; }
 .site-projector.is-projected { border-color: #d4a76a; box-shadow: 0 30px 80px rgba(0,0,0,0.9), 0 0 65px rgba(212,167,106,.3); }
 
 .polaroid { box-shadow: 6px 28px 65px rgba(0,0,0,.7), 4px 6px 0 #9e9a8f; }

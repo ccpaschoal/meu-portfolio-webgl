@@ -264,10 +264,11 @@ export class CinematicStory {
       else link.removeAttribute('aria-current');
     });
     if (this.transport) {
-      this.transport.inert = chapter !== 'projects';
-      this.transport.classList.toggle('is-hidden', chapter !== 'projects');
-      this.transport.style.opacity = String(1 - gsap.utils.clamp(0, 1, (this.state.reelMorph - 0.58) / 0.24));
-      this.transport.style.pointerEvents = this.state.reelMorph > 0.8 ? 'none' : '';
+      const isProjects = chapter === 'projects';
+      this.transport.inert = !isProjects;
+      this.transport.classList.toggle('is-hidden', !isProjects);
+      this.transport.style.opacity = isProjects ? '1' : '0';
+      this.transport.style.pointerEvents = isProjects ? '' : 'none';
     }
     if (this.progressBar) this.progressBar.style.transform = `scaleX(${phase})`;
     const number = { projects: '01', sites: '02', about: '03', contact: '04' }[chapter];
