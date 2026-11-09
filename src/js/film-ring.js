@@ -140,24 +140,29 @@ export class FilmRing extends THREE.Group {
 
   curvePoint(progress) {
     if (!this.previewCurve) {
-      this.previewCurve = new THREE.CatmullRomCurve3([
-        new THREE.Vector3(-790, -130, -80),
-        new THREE.Vector3(-610, 135, -190),
-        new THREE.Vector3(-380, 205, -285),
-        new THREE.Vector3(-115, 105, -150),
-        new THREE.Vector3(145, -140, -270),
-        new THREE.Vector3(410, -185, -105),
-        new THREE.Vector3(640, 25, -215),
-        new THREE.Vector3(800, 155, -90),
-      ], false, 'centripetal');
-      this.previewCurve.arcLengthDivisions = 300;
+      // Trajetória contínua 3D paramétrica em "S" com profundidade no eixo Z (THREE.CatmullRomCurve3 fechada e orgânica)
+      const points = [
+        new THREE.Vector3(0, 20, 820),        // Centro frontal (área ativa em foco nítido na câmera)
+        new THREE.Vector3(-480, -30, 620),    // Curva suave à esquerda
+        new THREE.Vector3(-780, 45, 180),     // Loop esquerdo com profundidade
+        new THREE.Vector3(-660, -40, -360),   // Recuo no fundo esquerdo
+        new THREE.Vector3(-160, 30, -680),    // Centro fundo em S
+        new THREE.Vector3(260, -30, -620),    // Transição fluida em S
+        new THREE.Vector3(680, 45, -340),     // Fundo direito
+        new THREE.Vector3(790, -40, 190),     // Loop direito com profundidade
+        new THREE.Vector3(480, 30, 630),      // Retorno suave frontal
+      ];
+      this.previewCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
+      this.previewCurve.arcLengthDivisions = 400;
     }
-    return this.previewCurve.getPointAt(THREE.MathUtils.clamp(progress, 0, 1));
+    const t = ((progress % 1) + 1) % 1;
+    return this.previewCurve.getPointAt(t);
   }
 
   curveTangent(progress) {
     if (!this.previewCurve) this.curvePoint(0);
-    return this.previewCurve.getTangentAt(THREE.MathUtils.clamp(progress, 0, 1)).normalize();
+    const t = ((progress % 1) + 1) % 1;
+    return this.previewCurve.getTangentAt(t).normalize();
   }
 
   refreshGridLayout() {

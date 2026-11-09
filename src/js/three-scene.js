@@ -35,6 +35,19 @@ export class CinematicScene {
     });
     container.replaceChildren(this.renderer.domElement);
 
+    // 1. Home (Projetor e Parallax): Rastreamento dinâmico do cursor e feixe volumétrico
+    this.pointerTarget = { x: 0, y: 0 };
+    this.pointerCurrent = { x: 0, y: 0 };
+    this.roomBeam = document.querySelector('.room-beam');
+    this.roomDust = document.querySelector('.room-dust');
+
+    const onPointerMove = (e) => {
+      this.pointerTarget.x = (e.clientX / window.innerWidth) * 2 - 1;
+      this.pointerTarget.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    };
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    this.cleanupPointer = () => window.removeEventListener('pointermove', onPointerMove);
+
     this.filmRig = new THREE.Group();
     this.filmRig.name = 'film-reel-rig';
     this.film = new FilmRing(frames, { radius: 820, height: 360, tilt: 0.15 });
@@ -117,7 +130,7 @@ export class CinematicScene {
     this.film.refreshGridLayout();
     const narrowScale = THREE.MathUtils.clamp(Math.min(width / 1440, height / 920) * 0.68, 0.45, 0.72);
     this.filmRig.scale.setScalar(narrowScale);
-    this.filmRig.position.y = 80;
+    this.filmRig.position.y = 135;
     const photoScale = THREE.MathUtils.clamp(Math.min(width / 520, height / 750), 0.55, 1);
     this.photoRig.scale.setScalar(photoScale);
     const vhsScale = THREE.MathUtils.clamp(Math.min(width / 1100, height / 540), 0.55, 1);
@@ -145,6 +158,22 @@ export class CinematicScene {
   render() {
     if (this.disposed) return;
     if (!document.hidden && this.renderReady) {
+      // Interpolação suave (lerp) no rastreamento do cursor para profundidade imediata
+      this.pointerCurrent.x += (this.pointerTarget.x - this.pointerCurrent.x) * 0.04;
+      this.pointerCurrent.y += (this.pointerTarget.y - this.pointerCurrent.y) * 0.04;
+
+      // Parallax suave na rotação da câmera (X, Y)
+      this.camera.rotation.y = -this.pointerCurrent.x * 0.032;
+      this.camera.rotation.x = this.pointerCurrent.y * 0.022;
+
+      // Parallax volumétrico no feixe de luz e poeira
+      if (this.roomBeam) {
+        this.roomBeam.style.transform = `rotate(${-8 + this.pointerCurrent.x * 3.5}deg) translate(${this.pointerCurrent.x * 16}px, ${-this.pointerCurrent.y * 10}px)`;
+      }
+      if (this.roomDust) {
+        this.roomDust.style.transform = `translate(${this.pointerCurrent.x * 20}px, ${-this.pointerCurrent.y * 14}px)`;
+      }
+
       this.film.updateFaces(this.camera);
       this.renderer.render(this.scene, this.camera);
     }
@@ -156,6 +185,7 @@ export class CinematicScene {
     this.disposed = true;
     cancelAnimationFrame(this.frameRequest);
     window.removeEventListener('resize', this.resize);
+    this.cleanupPointer?.();
     this.tiltX?.tween?.kill();
     this.tiltY?.tween?.kill();
     this.film.destroy();

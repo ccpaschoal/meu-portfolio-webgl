@@ -268,7 +268,7 @@ export class CinematicStory {
       this.transport.inert = !isProjects;
       this.transport.classList.toggle('is-hidden', !isProjects);
       this.transport.style.opacity = isProjects ? '1' : '0';
-      this.transport.style.pointerEvents = isProjects ? '' : 'none';
+      this.transport.style.pointerEvents = 'none';
     }
     if (this.progressBar) this.progressBar.style.transform = `scaleX(${phase})`;
     const number = { projects: '01', sites: '02', about: '03', contact: '04' }[chapter];
