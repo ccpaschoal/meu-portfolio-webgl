@@ -217,6 +217,15 @@ Este documento consolida todo o histórico, decisões de design, soluções mate
   - Fade de opacidade suave estendido para 5.2s, materializando as fotos gradualmente conforme se aproximam.
   - Sincronização da escala e aproximação Z do container em 8.5s, garantindo que todo o conjunto pouse no centro ao mesmo tempo sem duplo movimento.
 
+### 25. Saída Gradual e Serena do Carrossel (Fim do Efeito Catapulta)
+- **Problema**: O carrossel saía da tela rápido demais ("parece que a rolagem tá atirando ele pra fora").
+- **Causa**: Curva de aceleração `power2.in` (que ganha velocidade máxima no final), duração de apenas 4.0s e offsets de saída muito distantes.
+- **Solução em [`src/scene.js`](src/scene.js#L1419)**:
+  - Curva trocada para **`sine.inOut`**, proporcionando uma transição aveludada, constante e sem aceleração brusca.
+  - Duração mais que dobrada de 4.0s para **8.5s**, espalhada serenamente de 38.5s a 48.5s.
+  - Offsets de dispersão calibrados para as bordas do viewport (`X: ±650 a ±750, Y: ±520 a ±560`) com fade out de opacidade estendido para 6.5s.
+  - Transição perfeita e sem buraco preto com o nascimento do smartphone monolítico às 48.0s.
+
 ---
 
 ## 4. Como Executar e Validar
