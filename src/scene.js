@@ -19,7 +19,7 @@ const PHONE_ENTRY_X = -1500;
 
 // Hélice do Ato 02: raio, descida por lâmina e giro por lâmina (~30°)
 // depth: recuo do eixo da hélice em z (a lâmina da frente fica em z = radius + depth)
-const SPIRAL = { radius: 520, pitch: 140, angleStep: 0.52, depth: -330, slideW: 222, slideH: 277.5 };
+const SPIRAL = { radius: 560, pitch: 175, angleStep: 0.56, depth: -360, slideW: 222, slideH: 277.5 };
 
 // Carrega uma única vez as webfonts usadas nos textos desenhados em canvas.
 // O primeiro desenho pode sair com fonte de sistema; quando a promessa resolve, os canvases são redesenhados.
@@ -190,9 +190,9 @@ export class PortfolioScene {
 
     // [grupo, força em Y, força em X] do parallax do mouse por ato
     this.parallaxGroups = [
-      [this.chapter01Group, 0.10, 0.08],
-      [this.chapter02Group, 0.06, 0.05],
-      [this.chapter03Group, 0.05, 0.04]
+      [this.chapter01Group, 0.05, 0.04],
+      [this.chapter02Group, 0.035, 0.03],
+      [this.chapter03Group, 0.03, 0.025]
     ];
   }
 
@@ -642,8 +642,15 @@ export class PortfolioScene {
       transparent: true,
       opacity: 1.0
     });
-    const pillMat = new THREE.MeshBasicMaterial({ color: 0x020306, transparent: true, opacity: 1.0 });
-    const selfieMat = new THREE.MeshBasicMaterial({ color: 0x08182c, transparent: true, opacity: 1.0 });
+    // Ilha dinâmica acima da tela, com folga de profundidade + offset (não pisca nem é cortada pela tela)
+    const pillMat = new THREE.MeshBasicMaterial({
+      color: 0x020306, transparent: true, opacity: 1.0,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+    });
+    const selfieMat = new THREE.MeshBasicMaterial({
+      color: 0x08182c, transparent: true, opacity: 1.0,
+      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3
+    });
     const frontGlassMat = new THREE.MeshPhysicalMaterial({
       color: 0x05070a,
       roughness: 0.1,
@@ -712,9 +719,6 @@ export class PortfolioScene {
 
       const screenMat = new THREE.MeshBasicMaterial({
         map: this.siteScreenTextures[i],
-        polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
         transparent: true,
         opacity: 1.0
       });
@@ -725,13 +729,13 @@ export class PortfolioScene {
       mockup.add(screen);
 
       const pill = new THREE.Mesh(pillGeo, pillMat);
-      pill.position.set(0, SCREEN_H / 2 - 20, PHONE_D / 2 + BEVEL + 0.2);
+      pill.position.set(0, SCREEN_H / 2 - 20, PHONE_D / 2 + BEVEL + 0.7);
       const selfie = new THREE.Mesh(selfieLensGeo, selfieMat);
-      selfie.position.set(10, SCREEN_H / 2 - 20, PHONE_D / 2 + BEVEL + 0.25);
+      selfie.position.set(10, SCREEN_H / 2 - 20, PHONE_D / 2 + BEVEL + 0.8);
       mockup.add(pill, selfie);
 
       const glassFront = new THREE.Mesh(glassGeo, frontGlassMat);
-      glassFront.position.set(0, 0, PHONE_D / 2 + BEVEL + 0.35);
+      glassFront.position.set(0, 0, PHONE_D / 2 + BEVEL + 1.2);
       mockup.add(glassFront);
 
       const back = new THREE.Mesh(backGeo, backMat);
@@ -821,8 +825,8 @@ export class PortfolioScene {
     this.carouselAngle = angle;
     if (!this.mockups || !this.mockups.length) return;
     const NUM = this.mockups.length;
-    const RADIUS_X = 410;
-    const RADIUS_Z = 330;
+    const RADIUS_X = 460;
+    const RADIUS_Z = 300;
     const TWO_PI = Math.PI * 2;
     const step = TWO_PI / NUM;
     const travel = this.phoneTravel ?? 1;
@@ -863,10 +867,10 @@ export class PortfolioScene {
       const k = 1 - e;
       mockup.position.set(
         x + k * (PHONE_ENTRY_X - x),
-        y + Math.sin(Math.PI * e) * 26,
+        y + Math.sin(Math.PI * e) * 14,
         z * (1 - k * 0.6)
       );
-      mockup.rotation.set(rotX, rotY + k * 0.55, rotZ + k * 0.08);
+      mockup.rotation.set(rotX, rotY + k * 0.35, rotZ + k * 0.05);
 
       // Escala com profundidade: 1.05 na frente, 0.72 no fundo
       const scale = THREE.MathUtils.lerp(0.72, 1.05, frontFactor);
@@ -942,7 +946,7 @@ export class PortfolioScene {
     const SLIDE_H = SPIRAL.slideH;
     const slideGeo = new THREE.PlaneGeometry(SLIDE_W, SLIDE_H);
     const frameGeo = new THREE.BoxGeometry(SLIDE_W + 12, SLIDE_H + 12, 5);
-    const borderGeo = new THREE.EdgesGeometry(frameGeo);
+    const rimGeo = new THREE.PlaneGeometry(SLIDE_W + 7, SLIDE_H + 7);
 
     // Parâmetros da hélice (escada em espiral)
     const { radius, pitch, angleStep } = SPIRAL;
@@ -968,15 +972,16 @@ export class PortfolioScene {
       frameMesh.position.z = -3.5;
       slideGroup.add(frameMesh);
 
-      // Borda sutil cobalto / vinho / prata por coleção
-      const edgeMat = new THREE.LineBasicMaterial({
-        color: edgeColorFor(item.category),
+      // Filete cobalto / vinho / prata por coleção em volta da arte (linhas de 1px ficavam serrilhadas)
+      const edgeMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(edgeColorFor(item.category)).multiplyScalar(0.8),
         transparent: true,
-        opacity: 0
+        opacity: 0,
+        toneMapped: false
       });
-      const edgeLines = new THREE.LineSegments(borderGeo, edgeMat);
-      edgeLines.position.z = -3.5;
-      slideGroup.add(edgeLines);
+      const edgeRim = new THREE.Mesh(rimGeo, edgeMat);
+      edgeRim.position.z = 0.3;
+      slideGroup.add(edgeRim);
 
       // Lâmina: placeholder escuro até a textura .webp chegar (ver loadSpiralTextures)
       const slideMat = new THREE.MeshBasicMaterial({
@@ -986,7 +991,7 @@ export class PortfolioScene {
         toneMapped: false
       });
       const slideMesh = new THREE.Mesh(slideGeo, slideMat);
-      slideMesh.position.z = 0.5;
+      slideMesh.position.z = 0.9;
       slideGroup.add(slideMesh);
 
       this.spiralMaterials.push(frameMat, edgeMat, slideMat);
@@ -1053,24 +1058,38 @@ export class PortfolioScene {
     titleTex.colorSpace = THREE.SRGBColorSpace;
     titleTex.anisotropy = this.maxAniso;
 
-    const drawTitle = () => {
+    // compact (tela em pé): título em duas linhas e cargos em duas linhas maiores, para seguirem legíveis
+    this.contactTitleCompact = false;
+    const drawTitle = (compact = this.contactTitleCompact) => {
       const tCtx = titleCanvas.getContext('2d');
       tCtx.clearRect(0, 0, titleCanvas.width, titleCanvas.height);
       tCtx.textAlign = 'center';
       tCtx.textBaseline = 'middle';
 
-      tCtx.font = '700 34px "Space Mono", monospace';
-      tCtx.fillStyle = '#60a5fa';
-      if ('letterSpacing' in tCtx) tCtx.letterSpacing = '6px';
-      tCtx.fillText('SOCIAL MEDIA DESIGNER  ·  WEB DEVELOPER  ·  AI PRODUCT BUILDER', 1024, 140);
-
-      if ('letterSpacing' in tCtx) tCtx.letterSpacing = '0px';
+      // Título primeiro; os cargos entram como linha de apoio abaixo dele
       tCtx.shadowColor = 'rgba(37, 99, 235, 0.45)';
       tCtx.shadowBlur = 32;
-      tCtx.font = '800 132px "Inter", sans-serif';
       tCtx.fillStyle = '#f8fafc';
-      tCtx.fillText('ADAPTÁVEL. DO SEU JEITO.', 1024, 300);
+      if (compact) {
+        tCtx.font = '800 118px "Inter", sans-serif';
+        tCtx.fillText('ADAPTÁVEL.', 1024, 105);
+        tCtx.fillText('DO SEU JEITO.', 1024, 235);
+      } else {
+        tCtx.font = '800 132px "Inter", sans-serif';
+        tCtx.fillText('ADAPTÁVEL. DO SEU JEITO.', 1024, 215);
+      }
       tCtx.shadowBlur = 0;
+
+      tCtx.font = compact ? '700 38px "Space Mono", monospace' : '700 34px "Space Mono", monospace';
+      tCtx.fillStyle = '#93c5fd';
+      if ('letterSpacing' in tCtx) tCtx.letterSpacing = compact ? '4px' : '6px';
+      if (compact) {
+        tCtx.fillText('SOCIAL MEDIA DESIGNER  ·  WEB DEVELOPER', 1024, 345);
+        tCtx.fillText('AI PRODUCT BUILDER', 1024, 405);
+      } else {
+        tCtx.fillText('SOCIAL MEDIA DESIGNER  ·  WEB DEVELOPER  ·  AI PRODUCT BUILDER', 1024, 350);
+      }
+      if ('letterSpacing' in tCtx) tCtx.letterSpacing = '0px';
       titleTex.needsUpdate = true;
     };
 
@@ -1095,7 +1114,7 @@ export class PortfolioScene {
         headline: 'Vamos conversar?', sub: 'Orçamentos, freelas & projetos rápidos',
         cta: 'INICIAR CONVERSA ↗', accent: '#22c55e',
         url: 'https://wa.me/5521982566564',
-        pos: [-472, -52, 52], rot: [0.04, 0.26, 0.02]
+        pos: [-540, -46, 40], rot: [0.04, 0.24, 0.02]
       },
       {
         id: 'linkedin', label: 'LINKEDIN', badge: 'NETWORK',
@@ -1103,7 +1122,7 @@ export class PortfolioScene {
         headline: 'Camilla Paschoal', sub: 'Trajetória, conexões & experiências',
         cta: 'CONECTAR NO LINKEDIN ↗', accent: '#3b82f6',
         url: 'https://www.linkedin.com/in/camillapaschoal/',
-        pos: [-158, -82, 112], rot: [0.03, 0.09, 0.01]
+        pos: [-180, -76, 100], rot: [0.03, 0.08, 0.01]
       },
       {
         id: 'github', label: 'GITHUB', badge: 'REPOSITÓRIOS',
@@ -1111,7 +1130,7 @@ export class PortfolioScene {
         headline: '@ccpaschoal', sub: 'Código, WebGL, React & experimentos IA',
         cta: 'EXPLORAR CÓDIGO ↗', accent: '#a855f7',
         url: 'https://github.com/ccpaschoal',
-        pos: [158, -82, 112], rot: [0.03, -0.09, -0.01]
+        pos: [180, -76, 100], rot: [0.03, -0.08, -0.01]
       },
       {
         id: 'email', label: 'E-MAIL DIRETO', badge: 'CONTATO FORMAL',
@@ -1119,7 +1138,7 @@ export class PortfolioScene {
         headline: 'Proposta & Briefing', sub: 'camillacpaschoal@gmail.com',
         cta: 'ENVIAR E-MAIL ↗', accent: '#e11d48',
         url: 'mailto:camillacpaschoal@gmail.com',
-        pos: [472, -52, 52], rot: [0.04, -0.26, -0.02]
+        pos: [540, -46, 40], rot: [0.04, -0.24, -0.02]
       }
     ];
 
@@ -1127,7 +1146,7 @@ export class PortfolioScene {
     const BROWSER_H = 198;
     const screenGeo = new THREE.PlaneGeometry(BROWSER_W, BROWSER_H);
     const chassisGeo = new THREE.BoxGeometry(BROWSER_W + 12, BROWSER_H + 12, 7.5);
-    const chassisEdgesGeo = new THREE.EdgesGeometry(chassisGeo);
+    const rimGeoBrowser = new THREE.PlaneGeometry(BROWSER_W + 6, BROWSER_H + 6);
     const browserCanvases = [];
 
     const drawBrowser = (ctx, item) => {
@@ -1222,14 +1241,16 @@ export class PortfolioScene {
       chassisMesh.position.z = -4.5;
       browserGroup.add(chassisMesh);
 
-      const borderMat = new THREE.LineBasicMaterial({
+      // Filete na cor do contato em volta da janela (clareia no hover)
+      const borderMat = new THREE.MeshBasicMaterial({
         color: new THREE.Color(item.accent),
         transparent: true,
-        opacity: 0
+        opacity: 0,
+        toneMapped: false
       });
-      const borderLines = new THREE.LineSegments(chassisEdgesGeo, borderMat);
-      borderLines.position.z = -4.5;
-      browserGroup.add(borderLines);
+      const borderRim = new THREE.Mesh(rimGeoBrowser, borderMat);
+      borderRim.position.z = 0.25;
+      browserGroup.add(borderRim);
 
       const screenMat = new THREE.MeshBasicMaterial({
         map: screenTex,
@@ -1238,7 +1259,7 @@ export class PortfolioScene {
         toneMapped: false
       });
       const screenMesh = new THREE.Mesh(screenGeo, screenMat);
-      screenMesh.position.z = 0.5;
+      screenMesh.position.z = 0.8;
       browserGroup.add(screenMesh);
 
       this.contactMaterials.push(chassisMat, borderMat, screenMat);
@@ -1274,6 +1295,7 @@ export class PortfolioScene {
       this.browserMockups.push(browserGroup);
     });
     this.contactTitleMesh = titleMesh;
+    this.drawContactTitle = drawTitle;
 
     const redrawAll = () => {
       drawTitle();
@@ -1307,8 +1329,8 @@ export class PortfolioScene {
         const overlap = !this.reducedMotion.matches;
         this.chapter00Group.visible = t < (overlap ? 27.5 : 25);
         this.chapter01Group.visible = t >= (overlap ? 21 : 25) && t < 48.5;
-        this.chapter02Group.visible = t >= (overlap ? 43.5 : 50) && t < 77;
-        this.chapter03Group.visible = t >= (overlap ? 71 : 75);
+        this.chapter02Group.visible = t >= (overlap ? 46 : 50) && t < 77;
+        this.chapter03Group.visible = t >= (overlap ? 76 : 77);
 
         // Depois de subir nas Polaroids a poeira fica desligada pelo resto do site
         if (this.dustParticles && !this.teaserTimeline?.isActive()) {
@@ -1368,24 +1390,24 @@ export class PortfolioScene {
       { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 46.4);
     this.masterTimeline.to(this.phoneRimLight, { intensity: 0, duration: 3, immediateRender: false }, 44);
 
-    /* --- ATO 02: ESPIRAL 3D DOS CARROSSÉIS (44s -> 76s) ---
-       Descida contínua pela escada (49s -> 71s), subida final sumindo para cima */
+    /* --- ATO 02: ESPIRAL 3D DOS CARROSSÉIS (46.5s -> 76s) ---
+       Entra depois que os celulares saem; descida pela escada (50.5s -> 71.5s) e subida final */
     const totalSlides = spiralSlidesData.length;
     const totalClimbY = (totalSlides - 1) * SPIRAL.pitch;
     const totalTwistY = -(totalSlides - 1) * SPIRAL.angleStep;
-    const DESCENT_START = 49;
-    const DESCENT_DURATION = 22;
+    const DESCENT_START = 50.5;
+    const DESCENT_DURATION = 21;
     // Progresso em que cada lâmina fica de frente: a rolagem assenta na lâmina mais próxima
     this.spiralStops = Array.from({ length: totalSlides }, (_, k) =>
       (DESCENT_START + (k * DESCENT_DURATION) / (totalSlides - 1)) / 100);
 
-    this.masterTimeline.fromTo(this.spiralRimLight, { intensity: 0 }, { intensity: 3.2, duration: 4, immediateRender: false }, 44);
+    this.masterTimeline.fromTo(this.spiralRimLight, { intensity: 0 }, { intensity: 3.2, duration: 4, immediateRender: false }, 46.5);
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: -330, z: SPIRAL.depth - 270 },
-      { y: 0, z: SPIRAL.depth, duration: 5, ease: 'power2.out', immediateRender: false }, 44);
+      { y: 0, z: SPIRAL.depth, duration: 4, ease: 'power3.out', immediateRender: false }, 46.5);
     this.masterTimeline.fromTo(this.spiralMaterials,
       { opacity: 0 },
-      { opacity: 1, duration: 4.5, ease: 'power2.out', immediateRender: false }, 44);
+      { opacity: 1, duration: 3.5, ease: 'power2.out', immediateRender: false }, 46.5);
 
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: 0 },
@@ -1396,28 +1418,28 @@ export class PortfolioScene {
 
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: totalClimbY, z: SPIRAL.depth },
-      { y: totalClimbY + 900, z: SPIRAL.depth - 240, duration: 5, ease: 'power2.in', immediateRender: false }, 71);
+      { y: totalClimbY + 900, z: SPIRAL.depth - 240, duration: 4.5, ease: 'power2.in', immediateRender: false }, 71.5);
     this.masterTimeline.fromTo(this.spiralCarouselGroup.scale,
       { x: 1, y: 1, z: 1 },
-      { x: 0.84, y: 0.84, z: 0.84, duration: 5, ease: 'power2.in', immediateRender: false }, 71);
+      { x: 0.84, y: 0.84, z: 0.84, duration: 4.5, ease: 'power2.in', immediateRender: false }, 71.5);
     this.masterTimeline.to(this.spiralMaterials,
-      { opacity: 0, duration: 4.5, ease: 'power2.in', immediateRender: false }, 71.5);
-    this.masterTimeline.to(this.spiralRimLight, { intensity: 0, duration: 3, immediateRender: false }, 72);
+      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 72);
+    this.masterTimeline.to(this.spiralRimLight, { intensity: 0, duration: 3, immediateRender: false }, 72.5);
 
-    /* --- ATO 03: CONTATO (72s -> 100s) — platô final estável a partir de 82s --- */
+    /* --- ATO 03: CONTATO (76.5s -> 100s) — entra depois que a espiral sai; platô a partir de ~85s --- */
     this.masterTimeline.fromTo(this.contactGroup.position,
       { y: -390, z: -225 },
-      { y: 0, z: 0, duration: 9, ease: 'power3.out', immediateRender: false }, 72);
+      { y: 0, z: 0, duration: 8, ease: 'power3.out', immediateRender: false }, 76.5);
     this.browserMockups.forEach((browser, idx) => {
       const targetY = browser.userData.baseY;
       this.masterTimeline.fromTo(browser.position,
         { y: targetY - 210 },
-        { y: targetY, duration: 7, ease: 'back.out(1.4)', immediateRender: false },
-        73.5 + idx * 0.8);
+        { y: targetY, duration: 6, ease: 'power3.out', immediateRender: false },
+        77.5 + idx * 0.7);
     });
     this.masterTimeline.fromTo(this.contactMaterials,
       { opacity: 0 },
-      { opacity: 1, duration: 7, ease: 'power2.out', immediateRender: false }, 72.5);
+      { opacity: 1, duration: 6, ease: 'power2.out', immediateRender: false }, 77);
   }
 
   /* ==========================================================================
@@ -1616,18 +1638,18 @@ export class PortfolioScene {
     }
     const portrait = aspect < 0.8;
 
-    // Celulares: o aparelho da frente (≈218 de largura) ocupa no máx. ~55% da tela;
-    // em tela estreita os laterais saem pelas bordas, como no carrossel original
-    if (this.chapter01Group) this.chapter01Group.scale.setScalar(Math.min(1, (visibleWidth * 0.55) / 218));
+    // Celulares: o aparelho da frente (≈218 de largura, maior pela perspectiva) ocupa no máx. ~42%
+    // da largura; em tela estreita os laterais saem pelas bordas, como no carrossel original
+    if (this.chapter01Group) this.chapter01Group.scale.setScalar(Math.min(1, (visibleWidth * 0.42) / 218));
 
-    // Hélice: ≈1160 de largura total; em pé prioriza a lâmina da frente legível
+    // Hélice: ≈1300 de largura total; em pé prioriza a lâmina da frente legível
     if (this.chapter02Group) {
-      this.chapter02Group.scale.setScalar(Math.min(1, (visibleWidth * (portrait ? 0.9 : 0.95)) / (portrait ? 620 : 1160)));
+      this.chapter02Group.scale.setScalar(Math.min(1, (visibleWidth * (portrait ? 0.9 : 0.95)) / (portrait ? 640 : 1300)));
     }
 
-    // Contato: arco de 4 browsers (≈1280) no desktop, grade 2×2 (≈620) em tela em pé
+    // Contato: arco de 4 browsers (≈1800 já contando a perspectiva) no desktop, grade 2×2 (≈620) em pé
     if (this.chapter03Group) {
-      this.chapter03Group.scale.setScalar(Math.min(1, (visibleWidth * 0.92) / (portrait ? 620 : 1280)));
+      this.chapter03Group.scale.setScalar(Math.min(1, (visibleWidth * 0.92) / (portrait ? 620 : 1800)));
       const grid = [[-155, 20], [155, 20], [-155, -200], [155, -200]];
       this.contactGroup?.children.forEach((slot) => {
         const arc = slot.userData.layout?.arc;
@@ -1642,8 +1664,12 @@ export class PortfolioScene {
         }
       });
       if (this.contactTitleMesh) {
-        this.contactTitleMesh.scale.setScalar(portrait ? 0.58 : 1);
-        this.contactTitleMesh.position.y = portrait ? 220 : 300;
+        this.contactTitleMesh.scale.setScalar(1);
+        this.contactTitleMesh.position.y = portrait ? 260 : 300;
+      }
+      if (this.drawContactTitle && this.contactTitleCompact !== portrait) {
+        this.contactTitleCompact = portrait;
+        this.drawContactTitle(portrait);
       }
     }
   }

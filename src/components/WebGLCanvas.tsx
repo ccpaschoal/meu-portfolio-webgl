@@ -56,10 +56,15 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     let hasTriggered = false;
     let animFrameId: number | null = null;
 
-    const SCROLL_FACTOR = 0.00028;
+    // Cada clique da rodinha anda pouco (≈1,8s da narrativa): páginas mais longas e deslize contido
+    const SCROLL_FACTOR = 0.00018;
     // A narrativa nunca corre mais que isto à frente do que está na tela: num giro forte da
     // rodinha os objetos aceleram, mas não "teletransportam" de um ato para outro
-    const MAX_LEAD = 0.06;
+    const MAX_LEAD = 0.045;
+    // Quanto do caminho restante a tela percorre por quadro (mais alto = menos arraste depois de parar)
+    const FOLLOW = 0.24;
+    // Pausa depois do último evento de rolagem antes de assentar na próxima parada
+    const SETTLE_DELAY = 300;
     // Na espiral a rolagem anda mais devagar para dar para ver cada lâmina (~1,5 lâmina por clique)
     const scrollSpeedAt = (p: number) => {
       const stops = spiralStops();
@@ -70,14 +75,15 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
     let snapTimeout: ReturnType<typeof setTimeout> | null = null;
     let snapTween: gsap.core.Tween | null = null;
-    let lastScrollDelta = 0;
     let lastWheelAt = 0;
+    // Onde o gesto atual começou: o assentamento segue a direção do gesto a partir daqui
+    let gestureOrigin = 0;
     // O giro de rodinha que revela o site termina ali: a narrativa só anda num gesto novo
     let revealGestureActive = false;
 
     // Começo de cada ato no tempo da master timeline (0–100s)
     const CONTACT_PLATEAU = 0.90;
-    const CHAPTER_STARTS = [0, 24, 46, 73];
+    const CHAPTER_STARTS = [0, 24, 46, 76];
     const chapterAt = (time: number) => {
       let chapter = 0;
       for (let i = 1; i < CHAPTER_STARTS.length; i++) if (time >= CHAPTER_STARTS[i]) chapter = i;
@@ -85,6 +91,8 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     };
     const spiralStops = () => app.spiralStops?.length ? app.spiralStops : [0.49, 0.71];
     const phoneStops = () => app.phoneStops?.length ? app.phoneStops : [0.29, 0.33, 0.37, 0.41];
+    // Todas as composições fechadas da narrativa: Polaroids, cada site, cada lâmina e o contato
+    const allStops = () => [0, ...phoneStops(), ...spiralStops(), CONTACT_PLATEAU];
     const nearestOf = (stops: number[], p: number) => {
       let nearest = stops[0];
       for (const stop of stops) if (Math.abs(stop - p) < Math.abs(nearest - p)) nearest = stop;
@@ -93,31 +101,16 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     const clampLead = (p: number) =>
       Math.max(0, Math.min(1, Math.max(currentProgress - MAX_LEAD, Math.min(currentProgress + MAX_LEAD, p))));
 
-    // Para onde a rolagem assenta quando a pessoa para de rolar
-    const calculateSnapTarget = (p: number, dir: number) => {
-      const phones = phoneStops();
-      const spiral = spiralStops();
-      const firstSpiral = spiral[0];
-      const lastSpiral = spiral[spiral.length - 1];
-      // Ato 00 — Matriz / Polaroids: platô 0.00
-      if (p < 0.18) {
-        if (dir > 0 && p > 0.10) return phones[0];
-        return 0.00;
-      }
-      // Ato 01 — Digital: a rolagem gira o círculo e assenta no site mais próximo
-      if (p < firstSpiral - 0.025) {
-        if (dir > 0 && p > phones[phones.length - 1] + 0.015) return firstSpiral;
-        if (dir < 0 && p < phones[0] - 0.03) return 0.00;
-        return nearestOf(phones, p);
-      }
-      // Ato 02 — Espiral: assenta na lâmina mais próxima (não volta para o meio)
-      if (p <= lastSpiral + 0.015) {
-        if (dir < 0 && p < firstSpiral - 0.01) return phones[phones.length - 1];
-        return nearestOf(spiral, p);
-      }
-      // Ato 03 — Contato / browsers: platô 0.90
-      if (dir < 0 && p < 0.80) return lastSpiral;
-      return CONTACT_PLATEAU;
+    // Para onde a rolagem assenta quando a pessoa para: a próxima composição na direção do gesto
+    // (um clique já leva ao próximo site, lâmina ou ato; um giro forte assenta na mais próxima)
+    const calculateSnapTarget = (p: number) => {
+      const stops = allStops();
+      const moved = p - gestureOrigin;
+      if (Math.abs(moved) < 0.003) return nearestOf(stops, p);
+      const ahead = moved > 0
+        ? stops.filter(stop => stop > gestureOrigin + 0.0005)
+        : stops.filter(stop => stop < gestureOrigin - 0.0005);
+      return ahead.length ? nearestOf(ahead, p) : nearestOf(stops, p);
     };
 
     const scheduleSnap = () => {
@@ -127,16 +120,18 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       snapTimeout = setTimeout(() => {
         if (document.body.classList.contains('is-teaser') || app.isTransitioning) return;
 
-        const destination = calculateSnapTarget(targetProgress, Math.sign(lastScrollDelta));
-        if (Math.abs(targetProgress - destination) < 0.0005) return;
+        const destination = calculateSnapTarget(targetProgress);
+        gestureOrigin = destination;
+        if (Math.abs(targetProgress - destination) < 0.00005) return;
 
         snapTween?.kill();
+        const distance = Math.abs(destination - targetProgress);
         const state = { p: targetProgress };
         snapTween = gsap.to(state, {
           p: destination,
-          // ajuste curto (site ou lâmina vizinha) é rápido; troca de ato acelera e freia suave
-          duration: Math.min(1.4, 0.3 + Math.abs(destination - targetProgress) * 6),
-          ease: Math.abs(destination - targetProgress) > 0.05 ? 'power2.inOut' : 'power2.out',
+          // vizinho (site/lâmina): chegada curta que desacelera; troca de ato: acelera e freia
+          duration: distance > 0.05 ? Math.min(1.25, 0.55 + distance * 2.5) : 0.42 + distance * 6,
+          ease: distance > 0.05 ? 'power2.inOut' : 'expo.out',
           onUpdate: () => {
             targetProgress = state.p;
           },
@@ -145,7 +140,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
             snapTween = null;
           }
         });
-      }, 760);
+      }, SETTLE_DELAY);
     };
 
     app.setProgress = (p: number) => {
@@ -154,6 +149,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       snapTween = null;
       targetProgress = Math.max(0.0, Math.min(1.0, p));
       currentProgress = targetProgress;
+      gestureOrigin = targetProgress;
       if (app.masterTimeline) {
         app.masterTimeline.progress(targetProgress);
       }
@@ -271,7 +267,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       }
 
       cancelNavTween();
-      lastScrollDelta = e.deltaY;
+      if (newGesture) gestureOrigin = targetProgress;
       targetProgress = clampLead(
         targetProgress + Math.max(-120, Math.min(120, e.deltaY)) * SCROLL_FACTOR * scrollSpeedAt(targetProgress)
       );
@@ -287,6 +283,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       touchStartedAtTop = targetProgress <= 0.001 && currentProgress <= 0.004;
       touchRevealGesture = false;
       touchPull = 0;
+      gestureOrigin = targetProgress;
       if (snapTween) {
         snapTween.kill();
         snapTween = null;
@@ -319,7 +316,6 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
       const deltaY = touchStartY - y;
       touchStartY = y;
-      lastScrollDelta = deltaY;
 
       // Puxar para baixo num toque que começou parado no topo volta para a tela preta
       if (touchStartedAtTop && deltaY < 0) {
@@ -346,7 +342,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
       targetProgress = Math.max(0.0, Math.min(1.0, targetProgress));
       if (Math.abs(targetProgress - currentProgress) > 0.0001) {
-        currentProgress += (targetProgress - currentProgress) * (reducedMotion.matches ? 1 : 0.18);
+        currentProgress += (targetProgress - currentProgress) * (reducedMotion.matches ? 1 : FOLLOW);
         currentProgress = Math.max(0.0, Math.min(1.0, currentProgress));
         if (app.masterTimeline) {
           app.masterTimeline.progress(currentProgress);

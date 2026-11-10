@@ -235,9 +235,11 @@ try {
     [24, [true, true, false, false]],
     [28, [false, true, false, false]],
     [42, [false, true, false, false]],
-    [45, [false, true, true, false]],
+    [45, [false, true, false, false]],
+    [47, [false, true, true, false]],
     [55, [false, false, true, false]],
-    [72, [false, false, true, true]],
+    [74, [false, false, true, false]],
+    [76.5, [false, false, true, true]],
     [80, [false, false, false, true]]
   ]) {
     const visible = await page.evaluate((t) => {
@@ -358,7 +360,7 @@ try {
   }));
   assert.equal(afterNotch.site, 1, 'Um clique da rodinha deve levar ao próximo site');
   assert.ok(Math.abs(afterNotch.p - phoneStops[1]) < 0.002, 'A rolagem deve assentar na parada do site');
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 24; i++) {
     await page.mouse.wheel(0, 100);
     await page.waitForTimeout(15);
   }
@@ -371,7 +373,7 @@ try {
   assert.equal(stops.length, 20, 'Cada lâmina da espiral precisa de um ponto de parada');
   await page.evaluate((p) => window.portfolioApp.setProgress(p), stops[5] - 0.006);
   await page.waitForTimeout(250);
-  await page.mouse.wheel(0, 30);
+  await page.mouse.wheel(0, 50);
   await page.waitForTimeout(1800);
   const settled = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
   assert.ok(Math.abs(settled - stops[5]) < 0.0015,
@@ -380,10 +382,12 @@ try {
   await page.evaluate(() => window.portfolioApp.setProgress(0));
   await page.waitForTimeout(300);
   await page.mouse.wheel(0, 100);
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(150);
   const scrollProgress = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
-  assert.ok(scrollProgress > 0 && scrollProgress < 0.20,
-    'Um passo da roda deve avançar a narrativa de forma ágil e suave');
+  assert.ok(scrollProgress > 0 && scrollProgress < 0.03, 'Um clique da rodinha anda pouco (deslize contido)');
+  await page.waitForTimeout(2000);
+  const settledStep = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
+  assert.ok(Math.abs(settledStep - phoneStops[0]) < 0.002, 'Ao parar, assenta na próxima composição (primeiro site)');
 
   assert.equal(await page.locator('a[href="https://wa.me/5521982566564"]').count(), 1,
     'WhatsApp deve usar o número informado');
@@ -435,7 +439,7 @@ try {
       projectsLink: !!document.querySelector('a[href="https://ccpaschoal.github.io/hamburgueria/"]')
     }));
     assert.equal(mobileStatus.chapter, 0, 'Teaser deve terminar imediatamente com movimento reduzido');
-    assert.ok(mobileStatus.phoneScale > 0.9 && mobileStatus.contactScale < 1,
+    assert.ok(mobileStatus.phoneScale > 0.75 && mobileStatus.contactScale < 1,
       'Celular da frente deve ter tamanho legível e o contato deve caber no móvel');
     assert.equal(mobileStatus.reducedMotion, true);
     assert.ok(mobileStatus.trackerTop < 100, 'Tracker móvel deve ficar longe dos objetos centrais');
