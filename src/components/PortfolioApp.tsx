@@ -5,6 +5,8 @@ import { IntroTeaser } from './IntroTeaser';
 import { ChapterTracker } from './ChapterTracker';
 import { PhoneStage } from './PhoneStage';
 import { ProjectModal } from './ProjectModal';
+import { EditorialHUD } from './EditorialHUD';
+import { FilmGrainOverlay } from './FilmGrainOverlay';
 import { sitesData } from '../data/sites.js';
 import { projectsData } from '../data/projects.js';
 import type { ProjectItem } from '../types/portfolio';
@@ -12,6 +14,7 @@ import type { ProjectItem } from '../types/portfolio';
 export const PortfolioApp: React.FC = () => {
   const [isTeaser, setIsTeaser] = useState<boolean>(true);
   const [activeChapter, setActiveChapter] = useState<number>(0);
+  const [progress, setProgress] = useState<number>(0.0);
   const [siteIndex, setSiteIndex] = useState<number>(0);
   const [selectedProject, setSelectedProject] = useState<ProjectItem | null>(null);
 
@@ -156,9 +159,18 @@ export const PortfolioApp: React.FC = () => {
     <>
       <WebGLCanvas
         onChapterChange={setActiveChapter}
+        onProgressChange={setProgress}
         onTeaserTriggered={() => setIsTeaser(false)}
         onTeaserReturn={handleReturnToTeaser}
         onSiteChange={setSiteIndex}
+      />
+
+      <FilmGrainOverlay />
+
+      <EditorialHUD
+        visible={!isTeaser}
+        currentProgress={progress}
+        activeChapter={activeChapter}
       />
 
       <IntroTeaser visible={isTeaser} onEnter={handleEnter} />

@@ -142,6 +142,7 @@ export class PortfolioScene {
 
   initScene() {
     this.scene = new THREE.Scene();
+    this.scene.fog = new THREE.FogExp2(0x030305, 0.00032);
     this.scene.environment = this.envMap;
     this.scene.environmentIntensity = 0.55;
 
@@ -164,18 +165,18 @@ export class PortfolioScene {
   }
 
   initLighting() {
-    const ambient = new THREE.AmbientLight(0x0e1320, 1.2);
-    this.scene.add(ambient);
+    this.ambientLight = new THREE.AmbientLight(0x0e1320, 1.2);
+    this.scene.add(this.ambientLight);
 
     // Luz Direcional Azul Cobalto
-    const blueKey = new THREE.DirectionalLight(0x2563eb, 1.4);
-    blueKey.position.set(650, 450, 600);
-    this.scene.add(blueKey);
+    this.blueKeyLight = new THREE.DirectionalLight(0x2563eb, 1.4);
+    this.blueKeyLight.position.set(650, 450, 600);
+    this.scene.add(this.blueKeyLight);
 
     // Luz Direcional Vinho Escuro (#991b1b)
-    const wineRim = new THREE.DirectionalLight(0x991b1b, 2.0);
-    wineRim.position.set(-650, -250, -350);
-    this.scene.add(wineRim);
+    this.wineRimLight = new THREE.DirectionalLight(0x991b1b, 2.0);
+    this.wineRimLight.position.set(-650, -250, -350);
+    this.scene.add(this.wineRimLight);
 
     // Luz de recorte dedicada para a fita de película Kodak (#a5b4fc)
     this.filmRimLight = new THREE.SpotLight(0xa5b4fc, 0.0, 3400, Math.PI / 4, 0.35, 1.2);

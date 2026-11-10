@@ -5,6 +5,7 @@ import type { PortfolioSceneInstance } from '../types/portfolio';
 
 export interface WebGLCanvasProps {
   onChapterChange?: (chapter: number) => void;
+  onProgressChange?: (progress: number) => void;
   onTeaserTriggered?: () => void;
   onTeaserReturn?: () => void;
   onSiteChange?: (siteIndex: number) => void;
@@ -17,6 +18,7 @@ export interface WebGLCanvasProps {
  */
 export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
   onChapterChange,
+  onProgressChange,
   onTeaserTriggered,
   onTeaserReturn,
   onSiteChange
@@ -29,6 +31,9 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
   const onChapterChangeRef = useRef(onChapterChange);
   onChapterChangeRef.current = onChapterChange;
+
+  const onProgressChangeRef = useRef(onProgressChange);
+  onProgressChangeRef.current = onProgressChange;
 
   const onTeaserTriggeredRef = useRef(onTeaserTriggered);
   onTeaserTriggeredRef.current = onTeaserTriggered;
@@ -312,6 +317,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         lastChapter = activeChapter;
         onChapterChangeRef.current?.(activeChapter);
       }
+      onProgressChangeRef.current?.(currentProgress);
     };
     animFrameId = requestAnimationFrame(updateScrollLoop);
 

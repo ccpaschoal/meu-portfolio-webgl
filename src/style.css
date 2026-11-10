@@ -487,3 +487,178 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
   .intro-teaser, .tracker-indicator, .tracker-list li { transition: none; }
   .site-arrow { transition: none; }
 }
+
+/* ==========================================================================
+   ACABAMENTO CINEMATOGRÁFICO: VINHETA ÓPTICA E RUÍDO ANALÓGICO (FILM GRAIN)
+   ========================================================================== */
+.film-grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(circle at 50% 50%, transparent 45%, rgba(3, 3, 5, 0.45) 85%, rgba(2, 2, 4, 0.82) 100%);
+}
+
+.film-grain-overlay::before {
+  content: "";
+  position: absolute;
+  inset: -80px;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)' opacity='0.038'/%3E%3C/svg%3E");
+  opacity: 0.75;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: grainJitter 0.6s steps(3) infinite;
+}
+
+@keyframes grainJitter {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-2px, 3px); }
+  66% { transform: translate(3px, -2px); }
+  100% { transform: translate(-1px, 1px); }
+}
+
+/* ==========================================================================
+   HUD EDITORIAL CINEMATOGRÁFICO (PADRÃO AWWWARDS)
+   ========================================================================== */
+.editorial-hud {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.8rem 2.4rem;
+}
+
+.hud-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.hud-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hud-brand .hud-sep {
+  color: #991b1b;
+  opacity: 0.8;
+}
+
+.hud-brand .hud-role {
+  font-size: 0.68rem;
+  color: var(--silver-text);
+  font-weight: 400;
+  letter-spacing: 0.18em;
+}
+
+.hud-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+}
+
+.hud-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  padding: 0.22rem 0.65rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+}
+
+.hud-pulse-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #22c55e;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #22c55e;
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.hud-clock {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: var(--silver-text);
+}
+
+.hud-bottom-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.hud-tape-status {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(8, 12, 22, 0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+}
+
+.hud-tape-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.hud-tape-digits {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hud-tape-chapter {
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  color: var(--silver-text);
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  padding-left: 0.8rem;
+}
+
+.hud-nav-hints {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.hud-hint-key {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: rgba(200, 200, 207, 0.6);
+}
+
+@media (max-width: 768px) {
+  .editorial-hud {
+    padding: 1rem 1.2rem;
+  }
+  .hud-brand .hud-role,
+  .hud-meta .hud-clock,
+  .hud-nav-hints {
+    display: none;
+  }
+}
