@@ -8,7 +8,9 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "test": "node tests/cinematic.mjs"
+    "test": "node tests/cinematic.mjs",
+    "build:cf": "vite build --base=/ --outDir dist-cf",
+    "deploy": "npm run build:cf && wrangler pages deploy dist-cf --project-name camillapaschoal --branch main --commit-dirty=true"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
