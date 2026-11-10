@@ -62,7 +62,7 @@ export const PortfolioApp: React.FC = () => {
     }
 
     // Atos 01 e 02 começam no primeiro site / primeira lâmina (as mesmas paradas do snap da rolagem)
-    const phoneStart = app.phoneStops?.[0] ?? 0.29;
+    const phoneStart = app.phoneStops?.[0] ?? 0.25;
     const spiralStart = app.spiralStops?.[0] ?? 0.49;
     const destinations = [0.00, phoneStart, spiralStart, 0.90];
     const destination = destinations[chapter];

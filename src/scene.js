@@ -830,7 +830,7 @@ export class PortfolioScene {
     const TWO_PI = Math.PI * 2;
     const step = TWO_PI / NUM;
     const travel = this.phoneTravel ?? 1;
-    const SPAN = 0.46; // fatia do trajeto que cada celular leva para chegar/sair
+    const SPAN = 0.55; // fatia do trajeto que cada celular leva para chegar/sair (mais longa = mais calma)
     const STAGGER = (1 - SPAN) / (NUM - 1); // intervalo entre um celular e o próximo
 
     this.mockups.forEach((mockup, i) => {
@@ -842,10 +842,10 @@ export class PortfolioScene {
       let entry;
       if (travel <= 1) {
         const local = THREE.MathUtils.clamp((travel - rank * STAGGER) / SPAN, 0, 1);
-        entry = 1 - (1 - local) * (1 - local); // chega freando (power2.out)
+        entry = 1 - Math.pow(1 - local, 3); // chega freando bem antes de encaixar (power3.out)
       } else {
         const local = THREE.MathUtils.clamp((travel - 1 - rank * STAGGER) / SPAN, 0, 1);
-        entry = 1 - local * local; // sai acelerando para a esquerda (power2.in)
+        entry = Math.cos(local * Math.PI / 2); // sai do lugar devagar e ganha velocidade (sine.in)
       }
       mockup.userData.entry = entry;
       const rawX = RADIUS_X * Math.sin(theta);
@@ -1327,45 +1327,48 @@ export class PortfolioScene {
         if (document.body.classList.contains('is-teaser')) return;
         const t = this.masterTimeline.time();
         const overlap = !this.reducedMotion.matches;
-        this.chapter00Group.visible = t < (overlap ? 27.5 : 25);
-        this.chapter01Group.visible = t >= (overlap ? 21 : 25) && t < 48.5;
-        this.chapter02Group.visible = t >= (overlap ? 46 : 50) && t < 77;
-        this.chapter03Group.visible = t >= (overlap ? 76 : 77);
+        this.chapter00Group.visible = t < (overlap ? 16 : 14);
+        this.chapter01Group.visible = t >= (overlap ? 12 : 14) && t < 47;
+        this.chapter02Group.visible = t >= (overlap ? 44.5 : 46) && t < 75.5;
+        this.chapter03Group.visible = t >= (overlap ? 74.5 : 75.5);
 
         // Depois de subir nas Polaroids a poeira fica desligada pelo resto do site
         if (this.dustParticles && !this.teaserTimeline?.isActive()) {
           this.dustParticles.visible = false;
         }
-        if (!this.spiralTexturesRequested && t > 20) this.loadSpiralTextures();
+        if (!this.spiralTexturesRequested && t > 12) this.loadSpiralTextures();
       }
     });
 
     // Âncora de 100s exatos para mapear progress 0.00 -> 1.00
     this.masterTimeline.set({}, {}, 100);
 
-    /* --- ATO 00: POLAROIDS (0s -> 27s) --- */
-    this.masterTimeline.to(this.chapter00Group.position, { z: -420, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.leftPolaroid.position, { y: 1150, x: -390, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.rightPolaroid.position, { y: 1150, x: 390, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.centerPolaroid.position, { y: 1200, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.leftPolaroid.rotation, { z: -0.16, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.rightPolaroid.rotation, { z: 0.16, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.polaroidMaterials, { opacity: 0, duration: 6.0, ease: 'power1.inOut', immediateRender: false }, 20.5);
+    /* --- ATO 00: POLAROIDS (0s -> 15s): sobem e somem num voo curto, abrindo espaço para os celulares --- */
+    this.masterTimeline.to(this.chapter00Group.position, { z: -420, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.leftPolaroid.position, { y: 1150, x: -390, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.rightPolaroid.position, { y: 1150, x: 390, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.centerPolaroid.position, { y: 1200, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.leftPolaroid.rotation, { z: -0.16, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.rightPolaroid.rotation, { z: 0.16, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.polaroidMaterials, { opacity: 0, duration: 4, ease: 'power1.inOut', immediateRender: false }, 11);
 
-    /* --- ATO 01: 4 SMARTPHONES EM CARROSSEL CIRCULAR (21s -> 48s) ---
-       Platô estável de 28s a 42s (snap em 0.35: a rodinha folheia os sites) */
-    this.masterTimeline.fromTo(this.phoneRimLight, { intensity: 0 }, { intensity: 1.4, duration: 4, immediateRender: false }, 22);
+    /* --- ATO 01: 4 SMARTPHONES EM CARROSSEL CIRCULAR (12s -> 46s) ---
+       Entrada longa e calma, platô com um site por parada (25s a 37s) e saída longa */
+    this.masterTimeline.fromTo(this.phoneRimLight, { intensity: 0 }, { intensity: 1.4, duration: 4, immediateRender: false }, 12);
 
-    // Entrada (21.5s -> 28s): os 4 celulares chegam pela esquerda, um depois do outro, e formam
+    // Entrada (12s -> 24s): os 4 celulares chegam pela esquerda, um depois do outro, e formam
     // o círculo — o da esquerda, o do fundo, o da direita e, por último, o da frente.
     const placePhones = () => this.updateMockupCarouselPositions(this.carouselState.angle);
     this.masterTimeline.fromTo(this, { phoneTravel: 0 }, {
-      phoneTravel: 1, duration: 6.5, ease: 'none', immediateRender: false, onUpdate: placePhones
-    }, 21.5);
-    // Platô (28s -> 42s): a rolagem gira o círculo; cada site fica de frente numa parada
-    // (29s, 33s, 37s, 41s), com um respiro parado em volta de cada uma
+      phoneTravel: 1, duration: 12, ease: 'none', immediateRender: false, onUpdate: placePhones
+    }, 12);
+    // Platô (24s -> 37.5s): a rolagem gira o círculo; cada site fica de frente numa parada
+    // (25s, 29s, 33s, 37s), com um respiro parado em volta de cada uma
     const siteStep = (Math.PI * 2) / sitesData.length;
-    const phoneStopTimes = sitesData.map((_, i) => 29 + i * 4);
+    const phoneStopTimes = sitesData.map((_, i) => 25 + i * 4);
+    // Trechos (em segundos da narrativa) em que as passagens automáticas andam mais devagar:
+    // entrada e saída dos celulares, com peso 2.2 (gastam ~2,2× mais tempo real por segundo)
+    this.slowZones = [[12, 24, 2.2], [37.5, 45.5, 2.2]];
     this.phoneStops = phoneStopTimes.map(t => t / 100);
     for (let i = 1; i < phoneStopTimes.length; i++) {
       this.masterTimeline.fromTo(this.carouselState, { angle: -(i - 1) * siteStep }, {
@@ -1375,39 +1378,40 @@ export class PortfolioScene {
 
     this.masterTimeline.fromTo(this.phoneOpaqueMaterials,
       { opacity: 0 },
-      { opacity: 1, duration: 1.6, ease: 'power1.out', immediateRender: false }, 21.5);
+      { opacity: 1, duration: 1.6, ease: 'power1.out', immediateRender: false }, 12);
     this.masterTimeline.fromTo(this.phoneFrontGlassMat,
       { opacity: 0 },
-      { opacity: 0.08, duration: 1.6, ease: 'power1.out', immediateRender: false }, 21.5);
+      { opacity: 0.08, duration: 1.6, ease: 'power1.out', immediateRender: false }, 12);
 
-    // Saída (42s -> 47s): na ida para a espiral, voltam pela esquerda na mesma ordem
+    // Saída (37.5s -> 45.5s): logo depois do último site, voltam pela esquerda na mesma ordem,
+    // saindo do lugar devagar (a saída cai na parte lenta da passagem para a espiral)
     this.masterTimeline.fromTo(this, { phoneTravel: 1 }, {
-      phoneTravel: 2, duration: 5, ease: 'none', immediateRender: false, onUpdate: placePhones
-    }, 42);
+      phoneTravel: 2, duration: 8, ease: 'none', immediateRender: false, onUpdate: placePhones
+    }, 37.5);
     this.masterTimeline.to(this.phoneOpaqueMaterials,
-      { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 46.4);
+      { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 44.9);
     this.masterTimeline.to(this.phoneFrontGlassMat,
-      { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 46.4);
-    this.masterTimeline.to(this.phoneRimLight, { intensity: 0, duration: 3, immediateRender: false }, 44);
+      { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 44.9);
+    this.masterTimeline.to(this.phoneRimLight, { intensity: 0, duration: 3, immediateRender: false }, 43);
 
-    /* --- ATO 02: ESPIRAL 3D DOS CARROSSÉIS (46.5s -> 76s) ---
-       Entra depois que os celulares saem; descida pela escada (50.5s -> 71.5s) e subida final */
+    /* --- ATO 02: ESPIRAL 3D DOS CARROSSÉIS (45s -> 74.5s) ---
+       Entra quando os celulares saem; descida pela escada (49s -> 70s) e subida final */
     const totalSlides = spiralSlidesData.length;
     const totalClimbY = (totalSlides - 1) * SPIRAL.pitch;
     const totalTwistY = -(totalSlides - 1) * SPIRAL.angleStep;
-    const DESCENT_START = 50.5;
+    const DESCENT_START = 49;
     const DESCENT_DURATION = 21;
     // Progresso em que cada lâmina fica de frente: a rolagem assenta na lâmina mais próxima
     this.spiralStops = Array.from({ length: totalSlides }, (_, k) =>
       (DESCENT_START + (k * DESCENT_DURATION) / (totalSlides - 1)) / 100);
 
-    this.masterTimeline.fromTo(this.spiralRimLight, { intensity: 0 }, { intensity: 3.2, duration: 4, immediateRender: false }, 46.5);
+    this.masterTimeline.fromTo(this.spiralRimLight, { intensity: 0 }, { intensity: 3.2, duration: 4, immediateRender: false }, 45);
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: -330, z: SPIRAL.depth - 270 },
-      { y: 0, z: SPIRAL.depth, duration: 4, ease: 'power3.out', immediateRender: false }, 46.5);
+      { y: 0, z: SPIRAL.depth, duration: 4, ease: 'power3.out', immediateRender: false }, 45);
     this.masterTimeline.fromTo(this.spiralMaterials,
       { opacity: 0 },
-      { opacity: 1, duration: 3.5, ease: 'power2.out', immediateRender: false }, 46.5);
+      { opacity: 1, duration: 3.5, ease: 'power2.out', immediateRender: false }, 45);
 
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: 0 },
@@ -1418,28 +1422,28 @@ export class PortfolioScene {
 
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: totalClimbY, z: SPIRAL.depth },
-      { y: totalClimbY + 900, z: SPIRAL.depth - 240, duration: 4.5, ease: 'power2.in', immediateRender: false }, 71.5);
+      { y: totalClimbY + 900, z: SPIRAL.depth - 240, duration: 4.5, ease: 'power2.in', immediateRender: false }, 70);
     this.masterTimeline.fromTo(this.spiralCarouselGroup.scale,
       { x: 1, y: 1, z: 1 },
-      { x: 0.84, y: 0.84, z: 0.84, duration: 4.5, ease: 'power2.in', immediateRender: false }, 71.5);
+      { x: 0.84, y: 0.84, z: 0.84, duration: 4.5, ease: 'power2.in', immediateRender: false }, 70);
     this.masterTimeline.to(this.spiralMaterials,
-      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 72);
-    this.masterTimeline.to(this.spiralRimLight, { intensity: 0, duration: 3, immediateRender: false }, 72.5);
+      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 70.5);
+    this.masterTimeline.to(this.spiralRimLight, { intensity: 0, duration: 3, immediateRender: false }, 71);
 
-    /* --- ATO 03: CONTATO (76.5s -> 100s) — entra depois que a espiral sai; platô a partir de ~85s --- */
+    /* --- ATO 03: CONTATO (75s -> 100s) — entra depois que a espiral sai; platô a partir de ~83s --- */
     this.masterTimeline.fromTo(this.contactGroup.position,
       { y: -390, z: -225 },
-      { y: 0, z: 0, duration: 8, ease: 'power3.out', immediateRender: false }, 76.5);
+      { y: 0, z: 0, duration: 8, ease: 'power3.out', immediateRender: false }, 75);
     this.browserMockups.forEach((browser, idx) => {
       const targetY = browser.userData.baseY;
       this.masterTimeline.fromTo(browser.position,
         { y: targetY - 210 },
         { y: targetY, duration: 6, ease: 'power3.out', immediateRender: false },
-        77.5 + idx * 0.7);
+        76 + idx * 0.7);
     });
     this.masterTimeline.fromTo(this.contactMaterials,
       { opacity: 0 },
-      { opacity: 1, duration: 6, ease: 'power2.out', immediateRender: false }, 77);
+      { opacity: 1, duration: 6, ease: 'power2.out', immediateRender: false }, 75.5);
   }
 
   /* ==========================================================================

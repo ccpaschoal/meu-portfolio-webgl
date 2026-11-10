@@ -79,6 +79,8 @@ export interface PortfolioSceneInstance {
   spiralStops?: number[];
   /** Progresso (0–1) em que cada site fica de frente no círculo de celulares */
   phoneStops?: number[];
+  /** Trechos [início, fim, peso] (segundos da narrativa) em que as passagens automáticas desaceleram */
+  slowZones?: [number, number, number][];
   /** Desliza a narrativa até um progresso (resolve true ao chegar, false se a rolagem interromper) */
   glideTo?: (p: number, duration?: number) => Promise<boolean>;
   phonesList?: THREE.Object3D[];

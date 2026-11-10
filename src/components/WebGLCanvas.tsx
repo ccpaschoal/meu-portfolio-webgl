@@ -78,25 +78,65 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     let lastWheelAt = 0;
     // Onde o gesto atual começou: o assentamento segue a direção do gesto a partir daqui
     let gestureOrigin = 0;
+    // Sentido da passagem entre atos em andamento (0 = nenhuma): ela toca sozinha, com calma
+    let transitionDir = 0;
+    // Distância a partir da qual a próxima composição é outro ato (vira uma passagem com ritmo próprio)
+    const ACT_JUMP = 0.05;
+    // Plano de uma passagem entre atos: a duração cresce com o caminho e ela desacelera nos trechos
+    // lentos da cena (entrada/saída dos celulares). at(u) converte o avanço 0–1 em progresso.
+    const planTransition = (from: number, to: number) => {
+      const zones = app.slowZones ?? [];
+      const t0 = from * 100;
+      const t1 = to * 100;
+      const steps = Math.max(1, Math.ceil(Math.abs(t1 - t0) / 0.1));
+      const cum = new Float32Array(steps + 1);
+      for (let i = 1; i <= steps; i++) {
+        const t = t0 + ((t1 - t0) * (i - 0.5)) / steps;
+        let weight = 1;
+        for (const [a, b, w] of zones) if (t >= a && t <= b) weight = w;
+        cum[i] = cum[i - 1] + weight;
+      }
+      const total = cum[steps];
+      const at = (u: number) => {
+        const goal = u * total;
+        let lo = 0;
+        let hi = steps;
+        while (hi - lo > 1) {
+          const mid = (lo + hi) >> 1;
+          if (cum[mid] < goal) lo = mid; else hi = mid;
+        }
+        const span = cum[hi] - cum[lo] || 1;
+        return (t0 + ((t1 - t0) * (lo + (goal - cum[lo]) / span)) / steps) / 100;
+      };
+      const weightedSeconds = total * (Math.abs(t1 - t0) / steps);
+      return { duration: Math.min(3.8, 1.2 + weightedSeconds * 0.09), at };
+    };
     // O giro de rodinha que revela o site termina ali: a narrativa só anda num gesto novo
     let revealGestureActive = false;
 
     // Começo de cada ato no tempo da master timeline (0–100s)
     const CONTACT_PLATEAU = 0.90;
-    const CHAPTER_STARTS = [0, 24, 46, 76];
+    const CHAPTER_STARTS = [0, 14, 45, 75];
     const chapterAt = (time: number) => {
       let chapter = 0;
       for (let i = 1; i < CHAPTER_STARTS.length; i++) if (time >= CHAPTER_STARTS[i]) chapter = i;
       return chapter;
     };
-    const spiralStops = () => app.spiralStops?.length ? app.spiralStops : [0.49, 0.71];
-    const phoneStops = () => app.phoneStops?.length ? app.phoneStops : [0.29, 0.33, 0.37, 0.41];
+    const spiralStops = () => app.spiralStops?.length ? app.spiralStops : [0.49, 0.70];
+    const phoneStops = () => app.phoneStops?.length ? app.phoneStops : [0.25, 0.29, 0.33, 0.37];
     // Todas as composições fechadas da narrativa: Polaroids, cada site, cada lâmina e o contato
     const allStops = () => [0, ...phoneStops(), ...spiralStops(), CONTACT_PLATEAU];
     const nearestOf = (stops: number[], p: number) => {
       let nearest = stops[0];
       for (const stop of stops) if (Math.abs(stop - p) < Math.abs(nearest - p)) nearest = stop;
       return nearest;
+    };
+    // Próxima composição a partir de p no sentido do gesto (null quando não há mais nenhuma)
+    const nextStopFrom = (p: number, dir: number) => {
+      const stops = allStops();
+      if (dir > 0) return stops.find(stop => stop > p + 0.0005) ?? null;
+      for (let i = stops.length - 1; i >= 0; i--) if (stops[i] < p - 0.0005) return stops[i];
+      return null;
     };
     const clampLead = (p: number) =>
       Math.max(0, Math.min(1, Math.max(currentProgress - MAX_LEAD, Math.min(currentProgress + MAX_LEAD, p))));
@@ -126,12 +166,16 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
         snapTween?.kill();
         const distance = Math.abs(destination - targetProgress);
+        // outro ato: passagem calma (com os trechos lentos); vizinho: chegada curta que desacelera
+        if (distance > ACT_JUMP) {
+          playTransition(destination, 0);
+          return;
+        }
         const state = { p: targetProgress };
         snapTween = gsap.to(state, {
           p: destination,
-          // vizinho (site/lâmina): chegada curta que desacelera; troca de ato: acelera e freia
-          duration: distance > 0.05 ? Math.min(1.25, 0.55 + distance * 2.5) : 0.42 + distance * 6,
-          ease: distance > 0.05 ? 'power2.inOut' : 'expo.out',
+          duration: 0.42 + distance * 6,
+          ease: 'expo.out',
           onUpdate: () => {
             targetProgress = state.p;
           },
@@ -147,6 +191,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       if (snapTimeout) clearTimeout(snapTimeout);
       snapTween?.kill();
       snapTween = null;
+      transitionDir = 0;
       targetProgress = Math.max(0.0, Math.min(1.0, p));
       currentProgress = targetProgress;
       gestureOrigin = targetProgress;
@@ -172,6 +217,29 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       });
       app.navTween = tween;
     });
+
+    // Passagem entre atos: anda sozinha até a próxima composição, no ritmo calmo de actDuration
+    const playTransition = (destination: number, dir: number) => {
+      if (snapTimeout) clearTimeout(snapTimeout);
+      snapTween?.kill();
+      const plan = planTransition(targetProgress, destination);
+      const state = { u: 0 };
+      transitionDir = dir || Math.sign(destination - targetProgress);
+      gestureOrigin = destination;
+      snapTween = gsap.to(state, {
+        u: 1,
+        duration: reducedMotion.matches ? 0 : plan.duration,
+        ease: 'sine.inOut',
+        onUpdate: () => {
+          targetProgress = plan.at(state.u);
+        },
+        onComplete: () => {
+          targetProgress = destination;
+          snapTween = null;
+          transitionDir = 0;
+        }
+      });
+    };
 
     const startPortfolio = () => {
       if (hasTriggered || app.isTransitioning) return;
@@ -254,10 +322,15 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         return;
       }
 
+      const dir = e.deltaY > 0 ? 1 : -1;
+      // Passagem entre atos tocando: o resto do gesto (ou um gesto novo no mesmo sentido) só a acompanha
+      if (snapTween && transitionDir !== 0 && (!newGesture || dir === transitionDir)) return;
+
       // Se usuário interagir durante o snap automático, cancela imediatamente e devolve o controle manual
       if (snapTween) {
         snapTween.kill();
         snapTween = null;
+        transitionDir = 0;
       }
 
       // Voltar para a tela preta: só num gesto novo para cima, já parado no topo
@@ -267,7 +340,14 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       }
 
       cancelNavTween();
-      if (newGesture) gestureOrigin = targetProgress;
+      if (newGesture) {
+        gestureOrigin = targetProgress;
+        const next = nextStopFrom(targetProgress, dir);
+        if (next !== null && Math.abs(next - targetProgress) > ACT_JUMP) {
+          playTransition(next, dir);
+          return;
+        }
+      }
       targetProgress = clampLead(
         targetProgress + Math.max(-120, Math.min(120, e.deltaY)) * SCROLL_FACTOR * scrollSpeedAt(targetProgress)
       );
@@ -278,13 +358,16 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     let touchStartedAtTop = false;
     let touchRevealGesture = false;
     let touchPull = 0;
+    let touchFirstMove = false;
     const handleTouchStart = (e: TouchEvent) => {
       touchStartY = e.touches[0].clientY;
       touchStartedAtTop = targetProgress <= 0.001 && currentProgress <= 0.004;
       touchRevealGesture = false;
       touchPull = 0;
+      touchFirstMove = true;
       gestureOrigin = targetProgress;
-      if (snapTween) {
+      // Um toque não interrompe a passagem entre atos; só o assentamento curto
+      if (snapTween && transitionDir === 0) {
         snapTween.kill();
         snapTween = null;
       }
@@ -308,20 +391,35 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         return;
       }
 
+      const deltaY = touchStartY - y;
+      touchStartY = y;
+      if (deltaY === 0) return;
+      const dir = deltaY > 0 ? 1 : -1;
+      const firstMove = touchFirstMove;
+      touchFirstMove = false;
+
+      // Passagem entre atos tocando: segue até o fim, a menos que um toque novo puxe para o outro lado
+      if (snapTween && transitionDir !== 0 && (!firstMove || dir === transitionDir)) return;
       if (snapTween) {
         snapTween.kill();
         snapTween = null;
+        transitionDir = 0;
       }
       cancelNavTween();
-
-      const deltaY = touchStartY - y;
-      touchStartY = y;
 
       // Puxar para baixo num toque que começou parado no topo volta para a tela preta
       if (touchStartedAtTop && deltaY < 0) {
         touchPull -= deltaY;
         if (touchPull > 60) returnToTeaser();
         return;
+      }
+
+      if (firstMove) {
+        const next = nextStopFrom(targetProgress, dir);
+        if (next !== null && Math.abs(next - targetProgress) > ACT_JUMP) {
+          playTransition(next, dir);
+          return;
+        }
       }
 
       targetProgress = clampLead(targetProgress + deltaY * SCROLL_FACTOR * scrollSpeedAt(targetProgress));

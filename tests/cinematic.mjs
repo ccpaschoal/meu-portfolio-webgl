@@ -231,15 +231,15 @@ try {
 
   // Transições: cenas visíveis por tempo (com sobreposição suave entre atos)
   for (const [time, expected] of [
-    [20, [true, false, false, false]],
-    [24, [true, true, false, false]],
-    [28, [false, true, false, false]],
-    [42, [false, true, false, false]],
-    [45, [false, true, false, false]],
-    [47, [false, true, true, false]],
+    [10, [true, false, false, false]],
+    [13, [true, true, false, false]],
+    [17, [false, true, false, false]],
+    [36, [false, true, false, false]],
+    [44, [false, true, false, false]],
+    [46, [false, true, true, false]],
     [55, [false, false, true, false]],
     [74, [false, false, true, false]],
-    [76.5, [false, false, true, true]],
+    [75, [false, false, true, true]],
     [80, [false, false, false, true]]
   ]) {
     const visible = await page.evaluate((t) => {
@@ -261,7 +261,10 @@ try {
         entries: app.phonesList.map(m => m.userData.entry)
       };
     };
-    return { before: sample(23), middle: sample(25.5), after: sample(28.2), reversed: sample(20) };
+    return {
+      before: sample(15), middle: sample(20), after: sample(24.2), reversed: sample(11),
+      fade: sample(13), restored: sample(2)
+    };
   });
   assert.ok(transition.before.frontX < -900, 'Celular da frente começa fora da tela, à esquerda');
   assert.ok(transition.before.frontX < transition.middle.frontX && transition.middle.frontX < transition.after.frontX,
@@ -275,9 +278,9 @@ try {
     return app.phonesList.map(m => m.position.x);
   });
   assert.ok(exitX.every(x => x < -900), 'Na ida para a espiral os celulares saem pela esquerda');
-  assert.ok(transition.middle.opacity > 0 && transition.middle.opacity < 1,
+  assert.ok(transition.fade.opacity > 0 && transition.fade.opacity < 1,
     'Polaroids devem desaparecer gradualmente');
-  assert.equal(transition.reversed.opacity, 1, 'Voltar a rolagem deve restaurar as polaroids');
+  assert.equal(transition.restored.opacity, 1, 'Voltar a rolagem deve restaurar as polaroids');
 
   // Espiral: desce continuamente e a lâmina da vez fica de frente (θ + giro ≈ 0)
   const spiral = await page.evaluate(() => {
@@ -385,7 +388,7 @@ try {
   await page.waitForTimeout(150);
   const scrollProgress = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
   assert.ok(scrollProgress > 0 && scrollProgress < 0.03, 'Um clique da rodinha anda pouco (deslize contido)');
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(3900);
   const settledStep = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
   assert.ok(Math.abs(settledStep - phoneStops[0]) < 0.002, 'Ao parar, assenta na próxima composição (primeiro site)');
 
