@@ -86,6 +86,8 @@ export interface PortfolioSceneInstance {
   updateMouseCoordinates: (x: number, y: number) => void;
   checkHover: (x: number, y: number) => boolean;
   handleClick: (x: number, y: number) => void;
+  activeSiteIndex?: number;
+  showSite?: (direction: number) => Promise<boolean>;
   nextPhoneSite: () => void;
   prevPhoneSite: () => void;
   getCurrentSiteIndex: () => number;

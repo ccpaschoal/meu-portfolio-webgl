@@ -957,6 +957,18 @@ export class PortfolioScene {
     });
   }
 
+  nextPhoneSite() {
+    return this.showSite(1);
+  }
+
+  prevPhoneSite() {
+    return this.showSite(-1);
+  }
+
+  getCurrentSiteIndex() {
+    return this.activeSiteIndex;
+  }
+
   /* ==========================================================================
      ATO 03: DECK VHS DARK STUDIO COM RÓTULO NÍTIDO, GLITCH CONTROLADO E TRAVA
      ========================================================================== */

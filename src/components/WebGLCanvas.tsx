@@ -53,11 +53,70 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     let hasTriggered = false;
     let animFrameId: number | null = null;
 
-    const SCROLL_FACTOR = 0.00018;
+    const SCROLL_FACTOR = 0.00028;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const curtainEl = curtainRef.current;
 
+    let snapTimeout: ReturnType<typeof setTimeout> | null = null;
+    let snapTween: gsap.core.Tween | null = null;
+    let lastScrollDelta = 0;
+    let lastSiteWheelTime = 0;
+
+    // Platôs ideais de contemplação dos 4 Atos
+    const calculateSnapTarget = (p: number, dir: number) => {
+      // Ato 00: Matriz (0.00 a 0.18)
+      if (p < 0.18) {
+        if (dir > 0 && p > 0.10) return 0.35;
+        return 0.00;
+      }
+      // Ato 01: Película / Fita 35mm (0.18 a 0.48)
+      if (p < 0.48) {
+        if (dir > 0 && p > 0.40) return 0.60;
+        if (dir < 0 && p < 0.26) return 0.00;
+        return 0.35;
+      }
+      // Ato 02: Digital / Smartphones (0.48 a 0.75)
+      if (p < 0.75) {
+        if (dir > 0 && p > 0.68) return 0.90;
+        if (dir < 0 && p < 0.52) return 0.35;
+        return 0.60;
+      }
+      // Ato 03: Arquivo / VHS (0.75 a 1.00)
+      if (dir < 0 && p < 0.80) return 0.60;
+      return 0.90;
+    };
+
+    const scheduleSnap = () => {
+      if (snapTimeout) clearTimeout(snapTimeout);
+      if (reducedMotion.matches) return;
+
+      snapTimeout = setTimeout(() => {
+        if (document.body.classList.contains('is-teaser') || app.isTransitioning) return;
+
+        const destination = calculateSnapTarget(targetProgress, Math.sign(lastScrollDelta));
+        if (Math.abs(targetProgress - destination) < 0.005) return;
+
+        snapTween?.kill();
+        const state = { p: targetProgress };
+        snapTween = gsap.to(state, {
+          p: destination,
+          duration: 0.85,
+          ease: 'power2.out',
+          onUpdate: () => {
+            targetProgress = state.p;
+          },
+          onComplete: () => {
+            targetProgress = destination;
+            snapTween = null;
+          }
+        });
+      }, 760);
+    };
+
     app.setProgress = (p: number) => {
+      if (snapTimeout) clearTimeout(snapTimeout);
+      snapTween?.kill();
+      snapTween = null;
       targetProgress = Math.max(0.0, Math.min(1.0, p));
       currentProgress = targetProgress;
       if (app.masterTimeline) {
@@ -75,6 +134,9 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
     const returnToTeaser = () => {
       if (document.body.classList.contains('is-teaser') || app.isTransitioning) return;
+      if (snapTimeout) clearTimeout(snapTimeout);
+      snapTween?.kill();
+      snapTween = null;
       app.hideToTeaser(() => {
         document.body.classList.add('is-teaser');
         hasTriggered = false;
@@ -123,6 +185,13 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         return;
       }
 
+      // Se usuário interagir durante o snap automático, cancela imediatamente e devolve o controle manual
+      if (snapTween) {
+        snapTween.kill();
+        snapTween = null;
+      }
+
+      // Se estiver no topo absoluto (Ato 00) e rolar para cima, retorna ao teaser
       if (targetProgress <= 0.001 && currentProgress <= 0.015 && e.deltaY < -12) {
         returnToTeaser();
         return;
@@ -141,13 +210,43 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         targetProgress = currentProgress;
       }
 
+      lastScrollDelta = e.deltaY;
+
+      // NAVEGAÇÃO CONTEXTUAL INTELIGENTE NO SMARTPHONE (ATO 02)
+      // Quando estabilizado no celular, a rodinha folheia os 4 sites antes de seguir a narrativa
+      const now = performance.now();
+      const isAtPhone = Math.abs(currentProgress - 0.60) < 0.038;
+      const currentSite = app.getCurrentSiteIndex ? app.getCurrentSiteIndex() : (app.activeSiteIndex ?? 0);
+
+      if (isAtPhone && now - lastSiteWheelTime > 360) {
+        if (e.deltaY > 20 && currentSite < 3) {
+          lastSiteWheelTime = now;
+          if (app.showSite) app.showSite(1);
+          targetProgress = 0.60;
+          scheduleSnap();
+          return;
+        } else if (e.deltaY < -20 && currentSite > 0) {
+          lastSiteWheelTime = now;
+          if (app.showSite) app.showSite(-1);
+          targetProgress = 0.60;
+          scheduleSnap();
+          return;
+        }
+      }
+
       targetProgress += Math.max(-120, Math.min(120, e.deltaY)) * SCROLL_FACTOR;
       targetProgress = Math.max(0.0, Math.min(1.0, targetProgress));
+
+      scheduleSnap();
     };
 
     let touchStartY = 0;
     const handleTouchStart = (e: TouchEvent) => {
       touchStartY = e.touches[0].clientY;
+      if (snapTween) {
+        snapTween.kill();
+        snapTween = null;
+      }
     };
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -166,8 +265,14 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         return;
       }
 
+      if (snapTween) {
+        snapTween.kill();
+        snapTween = null;
+      }
+
       const deltaY = touchStartY - e.touches[0].clientY;
       touchStartY = e.touches[0].clientY;
+      lastScrollDelta = deltaY;
 
       if (targetProgress <= 0.001 && currentProgress <= 0.015 && deltaY < -18) {
         returnToTeaser();
@@ -176,6 +281,8 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
       targetProgress += deltaY * SCROLL_FACTOR;
       targetProgress = Math.max(0.0, Math.min(1.0, targetProgress));
+
+      scheduleSnap();
     };
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true });
@@ -217,6 +324,8 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
 
+      if (snapTimeout) clearTimeout(snapTimeout);
+      if (snapTween) snapTween.kill();
       if (trackerTweenRef.current) trackerTweenRef.current.kill();
       if (curtainTweenRef.current) curtainTweenRef.current.kill();
 
