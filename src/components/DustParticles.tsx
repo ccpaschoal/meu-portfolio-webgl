@@ -50,19 +50,32 @@ export const DustParticles: React.FC<DustParticlesProps> = ({
         uMouse: { value: new THREE.Vector3(99999, 99999, 0) },
         uInfluenceRadius: { value: influenceRadius },
         uColorWarm: { value: new THREE.Color(0xd4af37) },
-        uColorCold: { value: new THREE.Color(0xb0c4de) }
+        uColorCold: { value: new THREE.Color(0xb0c4de) },
+        uWind: { value: 0.0 },
+        uOpacity: { value: 1.0 }
       },
       vertexShader: `
         attribute float aColorType;
         attribute float aScale;
         uniform vec3 uMouse;
         uniform float uInfluenceRadius;
+        uniform float uTime;
+        uniform float uWind;
+        uniform float uOpacity;
         varying float vColorType;
         varying float vAlpha;
 
         void main() {
           vColorType = aColorType;
           vec3 pos = position;
+
+          // Vento ascendente
+          float pSeed = fract(sin(dot(position.xyz, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+          float windLift = uWind * (1450.0 + pSeed * 950.0);
+          float windSway = sin(uTime * 3.0 + pos.y * 0.008 + pSeed * 6.28) * (uWind * 160.0);
+          pos.y += windLift;
+          pos.x += windSway;
+
           float dist = distance(pos.xy, uMouse.xy);
           if (dist < uInfluenceRadius && uMouse.x < 50000.0) {
             vec2 dir = normalize(pos.xy - uMouse.xy);
@@ -70,9 +83,12 @@ export const DustParticles: React.FC<DustParticlesProps> = ({
             pos.xy += dir * force * 18.0;
           }
           vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-          gl_PointSize = (2.2 * aScale) * (300.0 / -mvPosition.z);
+          float windSizeMult = mix(1.0, 0.4 + pSeed * 0.6, uWind);
+          gl_PointSize = (2.2 * aScale * windSizeMult) * (300.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
-          vAlpha = smoothstep(600.0, 100.0, -mvPosition.z);
+          float baseAlpha = smoothstep(600.0, 100.0, -mvPosition.z);
+          float particleLife = clamp(1.0 - uWind * (0.85 + pSeed * 0.45), 0.0, 1.0);
+          vAlpha = baseAlpha * uOpacity * particleLife;
         }
       `,
       fragmentShader: `
@@ -82,11 +98,14 @@ export const DustParticles: React.FC<DustParticlesProps> = ({
         varying float vAlpha;
 
         void main() {
+          if (vAlpha <= 0.001) discard;
           float d = length(gl_PointCoord - vec2(0.5));
           if (d > 0.5) discard;
           vec3 col = mix(uColorWarm, uColorCold, vColorType);
           float strength = 1.0 - smoothstep(0.0, 0.5, d);
-          gl_FragColor = vec4(col, strength * 0.65 * vAlpha);
+          float finalA = strength * 0.65 * vAlpha;
+          if (finalA <= 0.001) discard;
+          gl_FragColor = vec4(col, finalA);
         }
       `
     });

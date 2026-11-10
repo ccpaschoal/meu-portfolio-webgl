@@ -216,24 +216,40 @@ export class PortfolioScene {
     geometry.setAttribute('aColorType', new THREE.BufferAttribute(colorTypes, 1));
     geometry.setAttribute('aScale', new THREE.BufferAttribute(scales, 1));
 
+    this.dustGeometry = geometry;
     this.dustMaterial = new THREE.ShaderMaterial({
       uniforms: {
         uMouse: { value: new THREE.Vector3(9999, 9999, 0) },
         uRadius: { value: 75.0 }, // Raio compacto calibrado
-        uTime: { value: 0.0 }
+        uTime: { value: 0.0 },
+        uWind: { value: 0.0 },
+        uOpacity: { value: 1.0 }
       },
       vertexShader: `
         uniform vec3 uMouse;
         uniform float uRadius;
         uniform float uTime;
+        uniform float uWind;
+        uniform float uOpacity;
         attribute float aColorType;
         attribute float aScale;
         varying float vGlow;
         varying float vType;
+        varying float vDustAlpha;
 
         void main() {
           vType = aColorType;
           vec3 pos = position;
+
+          // Vento ascendente dinâmico ao sair da página preta: partículas arremessadas para cima
+          float pSeed = fract(sin(dot(position.xyz, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+          float windLift = uWind * (1450.0 + pSeed * 950.0);
+          float windSway = sin(uTime * 3.0 + pos.y * 0.008 + pSeed * 6.28) * (uWind * 160.0);
+          float windDraft = cos(uTime * 2.2 + pos.x * 0.008 + pSeed * 6.28) * (uWind * 90.0);
+
+          pos.y += windLift;
+          pos.x += windSway;
+          pos.z += windDraft;
 
           // Flutuação orgânica serena e equilibrada (correntes cósmicas suaves)
           float t1 = uTime * 0.70;
@@ -258,15 +274,24 @@ export class PortfolioScene {
           }
 
           vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-          gl_PointSize = aScale * (11.0 + glow * 18.0) * (300.0 / -mvPosition.z);
+          float windSizeMult = mix(1.0, 0.4 + pSeed * 0.6, uWind);
+          gl_PointSize = aScale * windSizeMult * (11.0 + glow * 18.0) * (300.0 / -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
+
+          // Dissipação gradual com escalonamento per-partícula
+          float particleLife = clamp(1.0 - uWind * (0.85 + pSeed * 0.45), 0.0, 1.0);
+          vDustAlpha = uOpacity * particleLife;
         }
       `,
       fragmentShader: `
+        uniform float uOpacity;
         varying float vGlow;
         varying float vType;
+        varying float vDustAlpha;
 
         void main() {
+          if (vDustAlpha <= 0.001) discard;
+
           vec2 coord = gl_PointCoord - vec2(0.5);
           float dist = length(coord);
           if (dist > 0.5) discard;
@@ -282,7 +307,9 @@ export class PortfolioScene {
           vec3 glowColor = mix(blueGlow, wineGlow, vType);
 
           vec3 finalColor = mix(baseColor, glowColor, vGlow);
-          float finalAlpha = mix(alpha * 0.75, alpha * 1.0, vGlow);
+          float finalAlpha = mix(alpha * 0.75, alpha * 1.0, vGlow) * vDustAlpha;
+
+          if (finalAlpha <= 0.001) discard;
 
           gl_FragColor = vec4(finalColor, finalAlpha);
         }
@@ -1356,6 +1383,12 @@ export class PortfolioScene {
         this.chapter01Group.visible = time >= (overlap ? 22 : 25) && time < 49.5;
         this.chapter02Group.visible = time >= 48 && time < 75;
         this.chapter03Group.visible = time >= 75;
+
+        // Ao sair da tela preta e avançar na narrativa, garante poeira dissipada
+        if (this.dustMaterial && this.dustMaterial.uniforms.uOpacity.value > 0 && !this.teaserTimeline?.isActive()) {
+          this.dustMaterial.uniforms.uWind.value = 1.0;
+          this.dustMaterial.uniforms.uOpacity.value = 0.0;
+        }
       }
     });
 
@@ -1624,6 +1657,20 @@ export class PortfolioScene {
     tl.to(this.rightPolaroid.position, { x: 395, duration: 0.90, ease: 'power2.out' }, 0.36);
     tl.to(this.rightPolaroid.rotation, { z: 0.09, y: -0.12, duration: 0.90, ease: 'power2.out' }, 0.36);
 
+    // Vento ascendente jogando a poeira para cima e dissipando ao sair da página preta
+    if (this.dustMaterial) {
+      tl.to(this.dustMaterial.uniforms.uWind, {
+        value: 1.0,
+        duration: 1.35,
+        ease: 'power2.in'
+      }, 0);
+      tl.to(this.dustMaterial.uniforms.uOpacity, {
+        value: 0.0,
+        duration: 1.15,
+        ease: 'power2.out'
+      }, 0.15);
+    }
+
     if (this.reducedMotion.matches) tl.progress(1);
   }
 
@@ -1665,6 +1712,20 @@ export class PortfolioScene {
     tl.to(this.rightPolaroid.position, { y: -650, z: 5, duration: 0.65, ease: 'power2.in' }, 0.25);
     tl.to(this.centerPolaroid.position, { y: -650, z: 15, duration: 0.65, ease: 'power2.in' }, 0.28);
     tl.to(this.leftPolaroid.position, { y: -650, z: 0, duration: 0.65, ease: 'power2.in' }, 0.32);
+
+    // Retorno suave da poeira: vento cessa e partículas reassentam pacificamente na página preta
+    if (this.dustMaterial) {
+      tl.to(this.dustMaterial.uniforms.uWind, {
+        value: 0.0,
+        duration: 0.95,
+        ease: 'power2.out'
+      }, 0.20);
+      tl.to(this.dustMaterial.uniforms.uOpacity, {
+        value: 1.0,
+        duration: 1.05,
+        ease: 'power2.out'
+      }, 0.10);
+    }
 
     if (this.reducedMotion.matches) tl.progress(1);
   }
