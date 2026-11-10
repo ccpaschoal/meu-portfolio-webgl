@@ -29,6 +29,8 @@ html, body {
   color: #ffffff;
   font-family: var(--font-sans);
   user-select: none;
+  /* sem puxar-para-atualizar nem elástico do navegador no celular */
+  overscroll-behavior: none;
 }
 
 /* ==========================================================================
@@ -41,6 +43,8 @@ html, body {
   height: 100vh;
   z-index: 1;
   overflow: hidden;
+  /* os gestos de toque são da narrativa, não da página */
+  touch-action: none;
 }
 
 #webgl-container canvas {
@@ -525,7 +529,7 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
 
 .tracker-label {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   letter-spacing: 0.18em;
   color: var(--silver-text);
 }
@@ -552,7 +556,7 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
   .phone-copy-right { right: 1rem; }
   .site-arrow-prev { left: 0.7rem; }
   .site-arrow-next { right: 0.7rem; }
-  .site-caption { bottom: 10vh; font-size: 0.6rem; }
+  .site-caption { bottom: 10vh; font-size: 0.72rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -645,7 +649,7 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   letter-spacing: 0.12em;
   color: #86efac;
   background: rgba(34, 197, 94, 0.12);
@@ -694,9 +698,9 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
 }
 
 .hud-tape-label {
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   letter-spacing: 0.18em;
-  color: #991b1b;
+  color: #f87171;
   font-weight: 700;
 }
 
@@ -708,7 +712,7 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
 }
 
 .hud-tape-chapter {
-  font-size: 0.64rem;
+  font-size: 0.7rem;
   letter-spacing: 0.14em;
   color: var(--silver-text);
   border-left: 1px solid rgba(255, 255, 255, 0.15);
@@ -721,9 +725,9 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
 }
 
 .hud-hint-key {
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   letter-spacing: 0.12em;
-  color: rgba(200, 200, 207, 0.6);
+  color: rgba(200, 200, 207, 0.85);
 }
 
 @media (max-width: 768px) {
@@ -733,6 +737,13 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
   .hud-brand .hud-role,
   .hud-meta .hud-clock,
   .hud-nav-hints {
+    display: none;
+  }
+}
+
+/* Celular estreito: a pílula de status saía por cima do tracker */
+@media (max-width: 480px) {
+  .hud-live-pill {
     display: none;
   }
 }

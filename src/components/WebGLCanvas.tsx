@@ -113,6 +113,9 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     };
     // O giro de rodinha que revela o site termina ali: a narrativa só anda num gesto novo
     let revealGestureActive = false;
+    // Gesto para cima que começou parado no topo: acumula até voltar à tela preta (trackpad começa com deltas pequenos)
+    let topPullActive = false;
+    let topPull = 0;
 
     // Começo de cada ato no tempo da master timeline (0–100s)
     const CONTACT_PLATEAU = 0.90;
@@ -202,9 +205,10 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
     // Desliza a narrativa até um ponto (troca de site pelo teclado). A rolagem manual cancela.
     app.glideTo = (p: number, duration = 0.8) => new Promise<boolean>((resolve) => {
-      app.navTween?.kill();
+      cancelNavTween(); // também devolve a cortina do tracker, se estava no meio
       const state = { p: currentProgress };
       const tween = gsap.to(state, {
+        data: 'glide',
         p: Math.max(0, Math.min(1, p)),
         duration: reducedMotion.matches ? 0 : duration,
         ease: 'power2.inOut',
@@ -251,6 +255,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
     const returnToTeaser = () => {
       if (document.body.classList.contains('is-teaser') || app.isTransitioning) return;
+      cancelNavTween();
       if (snapTimeout) clearTimeout(snapTimeout);
       snapTween?.kill();
       snapTween = null;
@@ -328,10 +333,21 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         transitionDir = 0;
       }
 
-      // Voltar para a tela preta: só num gesto novo para cima, já parado no topo
-      if (newGesture && targetProgress <= 0.001 && currentProgress <= 0.004 && e.deltaY < -12) {
-        returnToTeaser();
-        return;
+      // Voltar para a tela preta: só num gesto novo para cima, que começou parado no topo
+      if (newGesture) {
+        topPullActive = targetProgress <= 0.001 && currentProgress <= 0.004;
+        topPull = 0;
+      }
+      if (topPullActive) {
+        if (e.deltaY < 0) {
+          topPull -= e.deltaY;
+          if (topPull > 40) {
+            topPullActive = false;
+            returnToTeaser();
+          }
+          return;
+        }
+        topPullActive = false;
       }
 
       cancelNavTween();

@@ -56,6 +56,8 @@ export const PortfolioApp: React.FC = () => {
   const handleSelectChapter = useCallback((chapter: number) => {
     const app = window.portfolioApp;
     if (!app) return;
+    // Durante a chegada/volta das Polaroids a narrativa ainda não pode ser movida
+    if (!isTeaser && app.isTransitioning) return;
 
     if (isTeaser) {
       handleEnter();
@@ -126,6 +128,7 @@ export const PortfolioApp: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.body.classList.contains('is-teaser') || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (window.portfolioApp?.isTransitioning) return;
       if (e.target instanceof Element && e.target.closest('details, input, textarea, select')) return;
 
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {

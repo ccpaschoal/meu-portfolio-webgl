@@ -908,7 +908,7 @@ export class PortfolioScene {
   // (quem gira o círculo é a rolagem). Para no primeiro e no último site.
   showSite(direction) {
     if (!this.phoneStops || !this.glideTo) return Promise.resolve(false);
-    const gliding = this.navTween?.isActive?.();
+    const gliding = this.navTween?.isActive?.() && this.navTween.data === 'glide';
     const from = gliding && this.siteTargetIndex != null ? this.siteTargetIndex : this.activeSiteIndex;
     const next = THREE.MathUtils.clamp(from + direction, 0, this.phoneStops.length - 1);
     if (next === from) return Promise.resolve(false);
