@@ -1,0 +1,538 @@
+[
+  {
+    "viewport": "desktop",
+    "milestone": {
+      "chapter": "00 - MATRIZ",
+      "progress": 0,
+      "slug": "act00-progress-0.00"
+    },
+    "telemetry": {
+      "renderCalls": 10,
+      "triangles": 18,
+      "points": 6500,
+      "geometries": 5,
+      "textures": 6,
+      "camera": {
+        "fov": 45,
+        "aspect": 1.778,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -395,
+          "y": -12,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 12,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 395,
+          "y": -12,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": 10,
+          "z": 40
+        },
+        "vhsPlayer": {
+          "x": -1500,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -720,
+          "z": 240
+        }
+      },
+      "visibility": {
+        "c00": true,
+        "c01": false,
+        "c02": false,
+        "c03": false
+      }
+    }
+  },
+  {
+    "viewport": "desktop",
+    "milestone": {
+      "chapter": "01 - PELÍCULA",
+      "progress": 0.35,
+      "slug": "act01-progress-0.35"
+    },
+    "telemetry": {
+      "renderCalls": 13,
+      "triangles": 1152,
+      "points": 6500,
+      "geometries": 11,
+      "textures": 12,
+      "camera": {
+        "fov": 45,
+        "aspect": 1.778,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -390,
+          "y": 1150,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 1200,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 390,
+          "y": 1150,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": -459,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": 10,
+          "z": 40
+        },
+        "vhsPlayer": {
+          "x": -1500,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -720,
+          "z": 240
+        }
+      },
+      "visibility": {
+        "c00": false,
+        "c01": true,
+        "c02": false,
+        "c03": false
+      }
+    }
+  },
+  {
+    "viewport": "desktop",
+    "milestone": {
+      "chapter": "02 - DIGITAL",
+      "progress": 0.6,
+      "slug": "act02-progress-0.60"
+    },
+    "telemetry": {
+      "renderCalls": 21,
+      "triangles": 2722,
+      "points": 6500,
+      "geometries": 27,
+      "textures": 13,
+      "camera": {
+        "fov": 45,
+        "aspect": 1.778,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -390,
+          "y": 1150,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 1200,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 390,
+          "y": 1150,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": -470,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": 10,
+          "z": 40
+        },
+        "vhsPlayer": {
+          "x": -1500,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -720,
+          "z": 240
+        }
+      },
+      "visibility": {
+        "c00": false,
+        "c01": false,
+        "c02": true,
+        "c03": false
+      }
+    }
+  },
+  {
+    "viewport": "desktop",
+    "milestone": {
+      "chapter": "03 - ARQUIVO",
+      "progress": 0.9,
+      "slug": "act03-progress-0.90"
+    },
+    "telemetry": {
+      "renderCalls": 18,
+      "triangles": 1548,
+      "points": 6500,
+      "geometries": 40,
+      "textures": 21,
+      "camera": {
+        "fov": 45,
+        "aspect": 1.778,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -390,
+          "y": 1150,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 1200,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 390,
+          "y": 1150,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": -470,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": -40,
+          "z": -700
+        },
+        "vhsPlayer": {
+          "x": 0,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -30,
+          "z": 0
+        }
+      },
+      "visibility": {
+        "c00": false,
+        "c01": false,
+        "c02": false,
+        "c03": true
+      }
+    }
+  },
+  {
+    "viewport": "mobile",
+    "milestone": {
+      "chapter": "00 - MATRIZ",
+      "progress": 0,
+      "slug": "act00-progress-0.00"
+    },
+    "telemetry": {
+      "renderCalls": 10,
+      "triangles": 18,
+      "points": 6500,
+      "geometries": 5,
+      "textures": 6,
+      "camera": {
+        "fov": 45,
+        "aspect": 0.462,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -395,
+          "y": -12,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 12,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 395,
+          "y": -12,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": 10,
+          "z": 40
+        },
+        "vhsPlayer": {
+          "x": -1500,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -720,
+          "z": 240
+        }
+      },
+      "visibility": {
+        "c00": true,
+        "c01": false,
+        "c02": false,
+        "c03": false
+      }
+    }
+  },
+  {
+    "viewport": "mobile",
+    "milestone": {
+      "chapter": "01 - PELÍCULA",
+      "progress": 0.35,
+      "slug": "act01-progress-0.35"
+    },
+    "telemetry": {
+      "renderCalls": 9,
+      "triangles": 768,
+      "points": 6500,
+      "geometries": 9,
+      "textures": 10,
+      "camera": {
+        "fov": 45,
+        "aspect": 0.462,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -390,
+          "y": 1150,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 1200,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 390,
+          "y": 1150,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": -459,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": 10,
+          "z": 40
+        },
+        "vhsPlayer": {
+          "x": -1500,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -720,
+          "z": 240
+        }
+      },
+      "visibility": {
+        "c00": false,
+        "c01": true,
+        "c02": false,
+        "c03": false
+      }
+    }
+  },
+  {
+    "viewport": "mobile",
+    "milestone": {
+      "chapter": "02 - DIGITAL",
+      "progress": 0.6,
+      "slug": "act02-progress-0.60"
+    },
+    "telemetry": {
+      "renderCalls": 21,
+      "triangles": 2722,
+      "points": 6500,
+      "geometries": 25,
+      "textures": 11,
+      "camera": {
+        "fov": 45,
+        "aspect": 0.462,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -390,
+          "y": 1150,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 1200,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 390,
+          "y": 1150,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": -470,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": 10,
+          "z": 40
+        },
+        "vhsPlayer": {
+          "x": -1500,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -720,
+          "z": 240
+        }
+      },
+      "visibility": {
+        "c00": false,
+        "c01": false,
+        "c02": true,
+        "c03": false
+      }
+    }
+  },
+  {
+    "viewport": "mobile",
+    "milestone": {
+      "chapter": "03 - ARQUIVO",
+      "progress": 0.9,
+      "slug": "act03-progress-0.90"
+    },
+    "telemetry": {
+      "renderCalls": 18,
+      "triangles": 1548,
+      "points": 6500,
+      "geometries": 38,
+      "textures": 19,
+      "camera": {
+        "fov": 45,
+        "aspect": 0.462,
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 1100
+        }
+      },
+      "objects": {
+        "leftPolaroid": {
+          "x": -390,
+          "y": 1150,
+          "z": -15
+        },
+        "centerPolaroid": {
+          "x": 0,
+          "y": 1200,
+          "z": 35
+        },
+        "rightPolaroid": {
+          "x": 390,
+          "y": 1150,
+          "z": -15
+        },
+        "kodakFilmStrip": {
+          "x": -470,
+          "y": 0,
+          "z": 0
+        },
+        "phone": {
+          "x": 0,
+          "y": -40,
+          "z": -700
+        },
+        "vhsPlayer": {
+          "x": 0,
+          "y": -30,
+          "z": 0
+        },
+        "vhsCassette": {
+          "x": 0,
+          "y": -30,
+          "z": 0
+        }
+      },
+      "visibility": {
+        "c00": false,
+        "c01": false,
+        "c02": false,
+        "c03": true
+      }
+    }
+  }
+]

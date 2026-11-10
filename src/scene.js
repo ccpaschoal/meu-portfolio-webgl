@@ -1746,10 +1746,13 @@ export class PortfolioScene {
     const aspect = this.width / this.height;
     const visibleWidth = 2 * this.camera.position.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * aspect;
     if (this.chapter00Group) {
-      this.chapter00Group.scale.setScalar(Math.min(1, visibleWidth * 0.88 / 1010));
+      this.chapter00Group.scale.setScalar(Math.min(1, (visibleWidth * 0.88) / 1010));
     }
-    if (this.chapter02Group) this.chapter02Group.scale.setScalar(Math.min(1, visibleWidth * 0.85 / 250));
-    if (this.chapter03Group) this.chapter03Group.scale.setScalar(Math.min(1, visibleWidth * 0.88 / 800));
+    if (this.chapter01Group) {
+      this.chapter01Group.scale.setScalar(Math.min(1, (visibleWidth * 0.92) / 780));
+    }
+    if (this.chapter02Group) this.chapter02Group.scale.setScalar(Math.min(1, (visibleWidth * 0.85) / 250));
+    if (this.chapter03Group) this.chapter03Group.scale.setScalar(Math.min(1, (visibleWidth * 0.88) / 800));
   }
 
   updateMouseCoordinates(clientX, clientY) {
