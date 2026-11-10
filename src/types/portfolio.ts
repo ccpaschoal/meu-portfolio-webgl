@@ -1,14 +1,6 @@
 import type * as THREE from 'three';
 import type gsap from 'gsap';
 
-export interface ProjectItem {
-  id: string;
-  title: string;
-  tag: string;
-  photos: string[];
-  thumb: string;
-}
-
 export interface SiteItem {
   id: string;
   title: string;
@@ -18,19 +10,6 @@ export interface SiteItem {
   image: string;
   link: string;
   href: string;
-}
-
-export interface ContactItem {
-  key: string;
-  label: string;
-  symbol: string;
-  href: string;
-}
-
-export interface ProjectModalProps {
-  isOpen: boolean;
-  project: ProjectItem | null;
-  onClose: () => void;
 }
 
 export interface ChapterTrackerProps {

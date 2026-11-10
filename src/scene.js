@@ -364,6 +364,7 @@ export class PortfolioScene {
      ATO 00: TRÍPTICO DE POLAROIDS (DESDOBRAMENTO EM LEQUE)
      ========================================================================== */
   buildChapter00() {
+    this.polaroidCompact = false;
     const frameGeo = new THREE.PlaneGeometry(330, 400);
     // Acabamento tátil de papel fotográfico acetinado sob luz de estúdio
     const frameMat = new THREE.MeshPhysicalMaterial({
@@ -403,8 +404,23 @@ export class PortfolioScene {
     const leftCanvas = document.createElement('canvas');
     leftCanvas.width = 1024; leftCanvas.height = 1024;
     const ctxL = leftCanvas.getContext('2d');
-    const drawLeft = () => {
+    // compact (tela em pé): menos texto e letras maiores, para ficar legível no celular
+    const drawLeft = (compact = this.polaroidCompact) => {
       ctxL.fillStyle = '#0a0d14'; ctxL.fillRect(0, 0, 1024, 1024);
+      if (compact) {
+        ctxL.font = '700 54px "Space Mono", monospace'; ctxL.fillStyle = '#3b82f6';
+        ctxL.fillText('00 / IDENTIDADE', 75, 150);
+        ctxL.strokeStyle = 'rgba(59, 130, 246, 0.4)'; ctxL.lineWidth = 4;
+        ctxL.beginPath(); ctxL.moveTo(75, 188); ctxL.lineTo(480, 188); ctxL.stroke();
+        ctxL.font = '800 124px "Inter", sans-serif'; ctxL.fillStyle = '#ffffff';
+        ctxL.fillText('CAMILLA', 75, 335);
+        ctxL.fillText('PASCHOAL', 75, 460);
+        ctxL.font = '700 60px "Space Mono", monospace'; ctxL.fillStyle = '#f8fafc';
+        ctxL.fillText('SOCIAL MEDIA DESIGNER', 75, 610);
+        ctxL.fillText('WEB DEVELOPER', 75, 705);
+        ctxL.fillText('AI PRODUCT BUILDER', 75, 800);
+        return;
+      }
 
       // Tag superior nítida
       ctxL.font = '700 44px "Space Mono", monospace'; ctxL.fillStyle = '#3b82f6';
@@ -469,8 +485,27 @@ export class PortfolioScene {
     const rightCanvas = document.createElement('canvas');
     rightCanvas.width = 1024; rightCanvas.height = 1024;
     const ctxR = rightCanvas.getContext('2d');
-    const drawRight = () => {
+    const drawRight = (compact = this.polaroidCompact) => {
       ctxR.fillStyle = '#0a0d14'; ctxR.fillRect(0, 0, 1024, 1024);
+      if (compact) {
+        ctxR.font = '700 54px "Space Mono", monospace'; ctxR.fillStyle = '#ef4444';
+        ctxR.fillText('00 / PRÁTICA & VISÃO', 75, 150);
+        ctxR.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctxR.lineWidth = 4;
+        ctxR.beginPath(); ctxR.moveTo(75, 188); ctxR.lineTo(500, 188); ctxR.stroke();
+        const items = [
+          ['SOCIAL MEDIA DESIGN', 'Carrosséis e direção de arte'],
+          ['WEB DEVELOPMENT', 'Sites 3D com Three.js e WebGL'],
+          ['AI PRODUCT BUILDER', 'Produtos com IA e automação']
+        ];
+        items.forEach(([title, line], i) => {
+          const y = 320 + i * 205;
+          ctxR.font = '800 70px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
+          ctxR.fillText(title, 75, y);
+          ctxR.font = '500 46px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
+          ctxR.fillText(line, 75, y + 62);
+        });
+        return;
+      }
 
       // Tag superior
       ctxR.font = '700 44px "Space Mono", monospace'; ctxR.fillStyle = '#ef4444';
@@ -515,13 +550,15 @@ export class PortfolioScene {
     rightInner.position.set(0, 36, 1.2);
     this.rightPolaroid.add(rightFrame, rightInner, rightShadow);
 
-    // Redesenha os textos das polaroids com as webfonts definitivas
-    canvasFontsReady().then(() => {
-      if (this._disposed) return;
+    // Redesenha os textos das polaroids (webfonts definitivas, ou troca do layout desktop/celular)
+    this.redrawPolaroids = () => {
       drawLeft();
       leftTex.needsUpdate = true;
       drawRight();
       rightTex.needsUpdate = true;
+    };
+    canvasFontsReady().then(() => {
+      if (!this._disposed) this.redrawPolaroids();
     });
 
     this.polaroidMaterials = [frameMat, leftInner.material, centerInner.material, rightInner.material, shadowMat];
@@ -529,9 +566,14 @@ export class PortfolioScene {
       material.transparent = true;
     });
 
-    // Posições iniciais e a chegada das Polaroids ficam em buildRevealTimeline()
-
-    this.chapter00Group.add(this.leftPolaroid, this.centerPolaroid, this.rightPolaroid);
+    // Cada polaroid fica num lugar (slot) que o layout posiciona: leque no desktop, coluna no
+    // celular em pé. As animações movem a polaroid dentro do seu lugar (posição final = 0,0,0).
+    // A chegada a partir da tela preta fica em buildRevealTimeline().
+    this.polaroidSlots = [new THREE.Group(), new THREE.Group(), new THREE.Group()];
+    this.polaroidSlots[0].add(this.leftPolaroid);
+    this.polaroidSlots[1].add(this.centerPolaroid);
+    this.polaroidSlots[2].add(this.rightPolaroid);
+    this.chapter00Group.add(...this.polaroidSlots);
     this.updateResponsiveLayout();
   }
 
@@ -1157,6 +1199,43 @@ export class PortfolioScene {
 
       // Fundo dark glass
       const grad = ctx.createLinearGradient(0, 0, W, H);
+      if (this.contactTitleCompact) {
+        // Celular em pé: só o essencial, com letras bem maiores (a janela fica pequena na tela)
+        grad.addColorStop(0, '#0b1120');
+        grad.addColorStop(1, '#16070c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#070a12';
+        ctx.fillRect(0, 0, W, 96);
+        ['#ef4444', '#f59e0b', '#10b981'].forEach((c, i) => {
+          ctx.beginPath();
+          ctx.arc(52 + i * 36, 48, 12, 0, Math.PI * 2);
+          ctx.fillStyle = c;
+          ctx.fill();
+        });
+        ctx.font = '700 44px "Inter", sans-serif';
+        const badgeW = ctx.measureText(item.badge).width + 64; // pílula do tamanho do texto
+        ctx.fillStyle = item.accent;
+        ctx.beginPath();
+        ctx.roundRect(64, 150, badgeW, 72, 36);
+        ctx.fill();
+        ctx.fillStyle = '#080c16';
+        ctx.fillText(item.badge, 96, 200);
+        ctx.font = '800 84px "Inter", sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(item.headline, 64, 360);
+        ctx.beginPath();
+        ctx.roundRect(64, 450, 820, 140, 24);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.fill();
+        ctx.strokeStyle = item.accent;
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.font = '700 58px "Inter", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(item.cta, 104, 540);
+        return;
+      }
       grad.addColorStop(0, '#0b1120');
       grad.addColorStop(1, '#16070c');
       ctx.fillStyle = grad;
@@ -1294,7 +1373,8 @@ export class PortfolioScene {
       this.browserMockups.push(browserGroup);
     });
     this.contactTitleMesh = titleMesh;
-    this.drawContactTitle = drawTitle;
+    // Troca desktop/celular: redesenha o título e as janelas (versão compacta em tela em pé)
+    this.drawContactTitle = () => redrawAll();
 
     const redrawAll = () => {
       drawTitle();
@@ -1344,11 +1424,11 @@ export class PortfolioScene {
 
     /* --- ATO 00: POLAROIDS (0s -> 15s): sobem e somem num voo curto, abrindo espaço para os celulares --- */
     this.masterTimeline.to(this.chapter00Group.position, { z: -420, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.leftPolaroid.position, { y: 1150, x: -390, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.rightPolaroid.position, { y: 1150, x: 390, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.centerPolaroid.position, { y: 1200, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.leftPolaroid.rotation, { z: -0.16, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
-    this.masterTimeline.to(this.rightPolaroid.rotation, { z: 0.16, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.leftPolaroid.position, { y: 1162, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.rightPolaroid.position, { y: 1162, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.centerPolaroid.position, { y: 1188, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.leftPolaroid.rotation, { z: -0.07, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
+    this.masterTimeline.to(this.rightPolaroid.rotation, { z: 0.07, duration: 11, ease: 'power1.in', immediateRender: false }, 3);
     this.masterTimeline.to(this.polaroidMaterials, { opacity: 0, duration: 4, ease: 'power1.inOut', immediateRender: false }, 11);
 
     /* --- ATO 01: 4 SMARTPHONES EM CARROSSEL CIRCULAR (12s -> 46s) ---
@@ -1452,15 +1532,28 @@ export class PortfolioScene {
      A volta para a tela preta toca o mesmo caminho ao contrário.
      ========================================================================== */
   buildRevealTimeline() {
-    const specs = [
-      { obj: this.leftPolaroid, from: { x: -140, y: -760, z: -80, ry: 0.3, rz: -0.22 }, to: { x: -395, y: -12, z: -15, ry: 0.12, rz: -0.09 } },
-      { obj: this.rightPolaroid, from: { x: 140, y: -760, z: -80, ry: -0.3, rz: 0.22 }, to: { x: 395, y: -12, z: -15, ry: -0.12, rz: 0.09 } },
-      { obj: this.centerPolaroid, from: { x: 0, y: -800, z: -40, ry: 0, rz: 0.1 }, to: { x: 0, y: 12, z: 35, ry: 0, rz: 0.005 } }
-    ];
-    // Estado inicial = começo da chegada (fora da tela, abaixo)
-    specs.forEach(({ obj, from }) => {
-      obj.position.set(from.x, from.y, from.z);
-      obj.rotation.set(0, from.ry, from.rz);
+    if (this.revealTimeline) this.revealTimeline.kill();
+    const portrait = this.width / this.height < 0.8;
+    const groupScale = this.chapter00Group.scale.x || 1;
+    const visibleHeight = 2 * this.camera.position.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    // Começam abaixo da borda da tela, qualquer que seja o layout
+    const bottom = visibleHeight / 2 / groupScale + 260;
+    const spread = portrait ? 40 : 255;
+    const polaroids = [this.leftPolaroid, this.centerPolaroid, this.rightPolaroid];
+    const fromFor = (i) => {
+      const side = i === 0 ? 1 : (i === 2 ? -1 : 0); // as laterais vêm do centro para fora
+      return {
+        x: side * spread,
+        y: -bottom - this.polaroidSlots[i].position.y,
+        z: -65,
+        ry: side * 0.18,
+        rz: i === 1 ? 0.095 : side * -0.13
+      };
+    };
+    polaroids.forEach((p, i) => {
+      const from = fromFor(i);
+      p.position.set(from.x, from.y, from.z);
+      p.rotation.set(0, from.ry, from.rz);
     });
 
     const tl = gsap.timeline({
@@ -1468,12 +1561,15 @@ export class PortfolioScene {
       onComplete: () => this.onRevealComplete(),
       onReverseComplete: () => this.onHideComplete()
     });
-    specs.forEach(({ obj, from, to }, i) => {
-      const at = i * 0.32;
+    // Ordem: esquerda, direita e, por último, a foto do centro
+    [0, 2, 1].forEach((i, k) => {
+      const p = polaroids[i];
+      const from = fromFor(i);
+      const at = k * 0.32;
       // x e y com curvas diferentes desenham um arco: sobe primeiro e abre para o lado depois
-      tl.fromTo(obj.position, { x: from.x }, { x: to.x, duration: 1.7, ease: 'power2.out', immediateRender: false }, at);
-      tl.fromTo(obj.position, { y: from.y, z: from.z }, { y: to.y, z: to.z, duration: 1.7, ease: 'power3.out', immediateRender: false }, at);
-      tl.fromTo(obj.rotation, { y: from.ry, z: from.rz }, { y: to.ry, z: to.rz, duration: 1.7, ease: 'power3.out', immediateRender: false }, at);
+      tl.fromTo(p.position, { x: from.x }, { x: 0, duration: 1.7, ease: 'power2.out', immediateRender: false }, at);
+      tl.fromTo(p.position, { y: from.y, z: from.z }, { y: 0, z: 0, duration: 1.7, ease: 'power3.out', immediateRender: false }, at);
+      tl.fromTo(p.rotation, { y: from.ry, z: from.rz }, { y: 0, z: 0, duration: 1.7, ease: 'power3.out', immediateRender: false }, at);
     });
     if (this.dustMaterial) {
       // uWind 1.2 zera a vida de todas as partículas no shader (vida = 1 - uWind·[0.85..1.30])
@@ -1493,6 +1589,7 @@ export class PortfolioScene {
     this.chapter00Group.rotation.set(0, 0, 0);
     this.chapter00Group.visible = true;
     if (this.dustParticles) this.dustParticles.visible = true;
+    this.buildRevealTimeline(); // caminho calculado para o layout atual (leque ou coluna)
 
     if (this.reducedMotion.matches) {
       this.revealTimeline.pause().progress(1, true);
@@ -1612,10 +1709,30 @@ export class PortfolioScene {
   updateResponsiveLayout() {
     const aspect = this.width / this.height;
     const visibleWidth = 2 * this.camera.position.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * aspect;
-    if (this.chapter00Group) {
-      this.chapter00Group.scale.setScalar(Math.min(1, (visibleWidth * 0.88) / 1010));
-    }
     const portrait = aspect < 0.8;
+    const visibleHeight = visibleWidth / aspect;
+
+    // Polaroids: leque lado a lado no desktop; coluna (identidade, foto, práticas) no celular em pé,
+    // com a polaroid de baixo cobrindo só a margem branca da de cima
+    if (this.chapter00Group) {
+      this.chapter00Group.scale.setScalar(portrait
+        ? Math.min(1, (visibleHeight * 0.76) / 1060, (visibleWidth * 0.86) / 330)
+        : Math.min(1, (visibleWidth * 0.88) / 1010));
+    }
+    if (this.polaroidSlots) {
+      const slots = portrait
+        ? [[-14, 330, 0, 0, -0.03], [12, 0, 25, 0, 0.02], [-8, -330, 50, 0, -0.02]]
+        : [[-395, -12, -15, 0.12, -0.09], [0, 12, 35, 0, 0.005], [395, -12, -15, -0.12, 0.09]];
+      this.polaroidSlots.forEach((slot, i) => {
+        const [x, y, z, ry, rz] = slots[i];
+        slot.position.set(x, y, z);
+        slot.rotation.set(0, ry, rz);
+      });
+      if (this.redrawPolaroids && this.polaroidCompact !== portrait) {
+        this.polaroidCompact = portrait;
+        this.redrawPolaroids();
+      }
+    }
 
     // Celulares: o aparelho da frente (≈218 de largura, maior pela perspectiva) ocupa no máx. ~42%
     // da largura; em tela estreita os laterais saem pelas bordas, como no carrossel original
@@ -1705,7 +1822,7 @@ export class PortfolioScene {
     }
 
     // Inclinação 3D tátil e independente para cada Polaroid solta no espaço (Capítulo 00)
-    if (this.chapter00Group && this.chapter00Group.visible && !this.reducedMotion.matches) {
+    if (this.chapter00Group && this.chapter00Group.visible && !this.reducedMotion.matches && !this.revealTimeline?.isActive()) {
       const mx = this.mouseNormX || 0;
       const my = this.mouseNormY || 0;
       const t = performance.now() * 0.001;
@@ -1719,11 +1836,11 @@ export class PortfolioScene {
         this.centerPolaroid.rotation.x = THREE.MathUtils.lerp(this.centerPolaroid.rotation.x, -my * 0.08, 0.06);
       }
       if (this.leftPolaroid) {
-        this.leftPolaroid.rotation.y = THREE.MathUtils.lerp(this.leftPolaroid.rotation.y, 0.12 + mx * 0.08, 0.06);
+        this.leftPolaroid.rotation.y = THREE.MathUtils.lerp(this.leftPolaroid.rotation.y, mx * 0.08, 0.06);
         this.leftPolaroid.rotation.x = THREE.MathUtils.lerp(this.leftPolaroid.rotation.x, -my * 0.07 + Math.sin(t * 1.1) * 0.005, 0.06);
       }
       if (this.rightPolaroid) {
-        this.rightPolaroid.rotation.y = THREE.MathUtils.lerp(this.rightPolaroid.rotation.y, -0.12 + mx * 0.08, 0.06);
+        this.rightPolaroid.rotation.y = THREE.MathUtils.lerp(this.rightPolaroid.rotation.y, mx * 0.08, 0.06);
         this.rightPolaroid.rotation.x = THREE.MathUtils.lerp(this.rightPolaroid.rotation.x, -my * 0.07 + Math.cos(t * 1.2) * 0.005, 0.06);
       }
     }

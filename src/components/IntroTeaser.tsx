@@ -45,6 +45,7 @@ export const IntroTeaser: React.FC<IntroTeaserProps> = ({
         </svg>
       </div>
       <span className="teaser-hint">CLIQUE OU ROLE</span>
+      <span className="teaser-signature">Camilla Paschoal · design e desenvolvimento web</span>
     </div>
   );
 };

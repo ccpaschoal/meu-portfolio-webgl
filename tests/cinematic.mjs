@@ -111,9 +111,9 @@ try {
       isTeaser,
       currentChapter: app.currentChapter,
       chapter00Visible: app.chapter00Group.visible,
-      leftX: app.leftPolaroid.position.x,
-      centerX: app.centerPolaroid.position.x,
-      rightX: app.rightPolaroid.position.x
+      leftX: app.leftPolaroid.getWorldPosition(app.camera.position.clone()).x,
+      centerX: app.centerPolaroid.getWorldPosition(app.camera.position.clone()).x,
+      rightX: app.rightPolaroid.getWorldPosition(app.camera.position.clone()).x
     };
   });
 

@@ -109,6 +109,15 @@ html, body {
   text-shadow: 0 0 24px rgba(255, 255, 255, 0.95), 0 0 44px rgba(56, 189, 248, 0.6);
 }
 
+/* Assinatura discreta abaixo da chamada: diz quem é antes do clique */
+.teaser-signature {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: rgba(226, 232, 240, 0.72);
+}
+
 @keyframes teaserBounce {
   0%, 100% {
     transform: translateY(0);
@@ -542,6 +551,11 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
   .teaser-hint {
     font-size: 1.12rem;
     letter-spacing: 0.34em;
+  }
+  .teaser-signature {
+    font-size: 0.8rem;
+    padding: 0 1.5rem;
+    text-align: center;
   }
   .chapter-tracker {
     right: 1.2rem;
