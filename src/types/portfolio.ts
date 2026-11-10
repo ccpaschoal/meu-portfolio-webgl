@@ -27,21 +27,6 @@ export interface ContactItem {
   href: string;
 }
 
-export interface DustParticlesProps {
-  count?: number;
-  influenceRadius?: number;
-  containerRef?: React.RefObject<HTMLDivElement | null>;
-  onInit?: (mesh: THREE.Points, geometry: THREE.BufferGeometry, material: THREE.ShaderMaterial) => void;
-  onDestroy?: () => void;
-}
-
-export interface Carousel3DProps {
-  projects: ProjectItem[];
-  activeProject?: ProjectItem | null;
-  onSelectProject?: (project: ProjectItem) => void;
-  visible?: boolean;
-}
-
 export interface ProjectModalProps {
   isOpen: boolean;
   project: ProjectItem | null;
@@ -71,12 +56,9 @@ export interface PortfolioSceneInstance {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
-  dustMesh?: THREE.Points;
+  dustParticles?: THREE.Points;
   dustGeometry?: THREE.BufferGeometry;
   dustMaterial?: THREE.ShaderMaterial;
-  filmSpool?: THREE.Group;
-  vhsMesh?: THREE.Mesh;
-  phoneGroup?: THREE.Group;
   currentChapter: number;
   isTransitioning: boolean;
   masterTimeline?: gsap.core.Timeline;
@@ -91,8 +73,10 @@ export interface PortfolioSceneInstance {
   nextPhoneSite: () => void;
   prevPhoneSite: () => void;
   getCurrentSiteIndex: () => number;
-  onSiteChange?: (index: number) => void;
+  onSiteChange?: (site: SiteItem, index: number, total: number) => void;
   setProgress?: (p: number) => void;
+  /** Animação de navegação do tracker/teclado (a rolagem manual a cancela) */
+  navTween?: gsap.core.Timeline | null;
   dispose: () => void;
 }
 

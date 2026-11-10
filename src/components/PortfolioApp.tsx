@@ -8,7 +8,7 @@ import { ProjectModal } from './ProjectModal';
 import { EditorialHUD } from './EditorialHUD';
 import { FilmGrainOverlay } from './FilmGrainOverlay';
 import { sitesData } from '../data/sites.js';
-import { projectsData } from '../data/projects.js';
+import { spiralSlidesData } from '../data/spiralSlides.js';
 import type { ProjectItem } from '../types/portfolio';
 
 export const PortfolioApp: React.FC = () => {
@@ -20,14 +20,23 @@ export const PortfolioApp: React.FC = () => {
 
   const currentSite = sitesData[siteIndex] || sitesData[0];
 
-  // Sincronização do indicador visual no tracker lateral
+  // Sincronização do indicador visual no tracker lateral (centralizado no item ativo, medido no DOM)
   useEffect(() => {
     document.body.dataset.chapter = String(activeChapter);
-    const indicator = document.getElementById('tracker-indicator');
-    if (indicator) {
-      indicator.style.transform = `translateY(${activeChapter * 46}px)`;
-    }
-  }, [activeChapter]);
+    const placeIndicator = () => {
+      const indicator = document.getElementById('tracker-indicator');
+      const rail = indicator?.parentElement;
+      const item = document.querySelector<HTMLElement>(`.tracker-list li[data-chapter="${activeChapter}"]`);
+      if (!indicator || !rail || !item) return;
+      const itemBox = item.getBoundingClientRect();
+      const railBox = rail.getBoundingClientRect();
+      const y = itemBox.top + itemBox.height / 2 - railBox.top - indicator.offsetHeight / 2;
+      indicator.style.transform = `translateY(${y}px)`;
+    };
+    placeIndicator();
+    window.addEventListener('resize', placeIndicator);
+    return () => window.removeEventListener('resize', placeIndicator);
+  }, [activeChapter, isTeaser]);
 
   // Transições de entrada e retorno ao teaser
   const handleEnter = useCallback(() => {
@@ -60,32 +69,41 @@ export const PortfolioApp: React.FC = () => {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const curtainEl = document.getElementById('chapter-curtain');
 
+    // Uma navegação por vez: cliques rápidos substituem a anterior em vez de disputar o progresso
+    app.navTween?.kill();
+    app.navTween = null;
+
     if (reducedMotion.matches || !curtainEl) {
+      if (curtainEl) curtainEl.style.opacity = '0';
       app.setProgress?.(destination);
       setActiveChapter(chapter);
       return;
     }
 
-    const tl = gsap.timeline();
+    const state = { p: startProgress };
+    const tl = gsap.timeline({
+      onComplete: () => {
+        if (app.navTween === tl) app.navTween = null;
+      }
+    });
     tl.to(curtainEl, { opacity: 1, duration: 0.14, ease: 'power1.in' })
       .add(() => {
         app.setProgress?.(startProgress);
         setActiveChapter(chapter);
-
-        const state = { p: startProgress };
-        gsap.to(state, {
-          p: destination,
-          duration: 0.9,
-          ease: 'power2.out',
-          onUpdate: () => {
-            app.setProgress?.(state.p);
-          },
-          onComplete: () => {
-            app.setProgress?.(destination);
-          }
-        });
       })
-      .to(curtainEl, { opacity: 0, duration: 0.16, ease: 'power1.out' });
+      .to(state, {
+        p: destination,
+        duration: 0.9,
+        ease: 'power2.out',
+        onUpdate: () => {
+          app.setProgress?.(state.p);
+        },
+        onComplete: () => {
+          app.setProgress?.(destination);
+        }
+      })
+      .to(curtainEl, { opacity: 0, duration: 0.16, ease: 'power1.out' }, '<');
+    app.navTween = tl;
   }, [isTeaser, handleEnter]);
 
   // Troca de sites nos smartphones centrais
@@ -119,12 +137,17 @@ export const PortfolioApp: React.FC = () => {
       } else if (e.key === 'End') {
         e.preventDefault();
         handleSelectChapter(3);
+      } else if (activeChapter === 1 && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        // No Ato 01 as setas laterais trocam o site do celular (as setas na tela ficam ocultas)
+        e.preventDefault();
+        if (e.key === 'ArrowRight') handleNextSite();
+        else handlePrevSite();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeChapter, handleSelectChapter]);
+  }, [activeChapter, handleSelectChapter, handleNextSite, handlePrevSite]);
 
   // Tipografia dividida letra por letra (efeito estético Vanessa Chaves)
   useEffect(() => {
@@ -194,18 +217,28 @@ export const PortfolioApp: React.FC = () => {
         onClose={() => setSelectedProject(null)}
       />
 
+      {/* Versão em texto da narrativa 3D (leitores de tela e buscadores); os links aparecem ao receber foco */}
+      <nav className="sr-only skip-links" aria-label="Links diretos">
+        <a href="https://aconchegoeventos.pages.dev">Aconchego Festas e Eventos</a>
+        <a href="https://ccpaschoal.github.io/vanessachavestdah/">Vanessa Chaves</a>
+        <a href="https://ccpaschoal.github.io/hamburgueria/">Chapa 62</a>
+        <a href="https://lojaaura.pages.dev/">Loja AURA</a>
+        <a href="https://wa.me/5521982566564">WhatsApp</a>
+        <a href="https://www.linkedin.com/in/camillapaschoal/">LinkedIn</a>
+        <a href="https://github.com/ccpaschoal">GitHub</a>
+        <a href="mailto:camillacpaschoal@gmail.com">E-mail</a>
+      </nav>
       <main className="sr-only">
         <h1>Camilla Paschoal — design e desenvolvimento web</h1>
-        <nav aria-label="Links diretos">
-          <a href="https://aconchegoeventos.pages.dev">Aconchego Festas e Eventos</a>
-          <a href="https://ccpaschoal.github.io/vanessachavestdah/">Vanessa Chaves</a>
-          <a href="https://ccpaschoal.github.io/hamburgueria/">Chapa 62</a>
-          <a href="https://lojaaura.pages.dev/">Loja AURA</a>
-          <a href="https://wa.me/5521982566564">WhatsApp</a>
-          <a href="https://www.linkedin.com/in/camillapaschoal/">LinkedIn</a>
-          <a href="https://github.com/ccpaschoal">GitHub</a>
-          <a href="mailto:camillacpaschoal@gmail.com">E-mail</a>
-        </nav>
+        <p>Social media designer, web developer e AI product builder no Rio de Janeiro.</p>
+        <section aria-labelledby="sr-carrosseis">
+          <h2 id="sr-carrosseis">Carrosséis para Instagram</h2>
+          <ul>
+            {spiralSlidesData.map((slide) => (
+              <li key={slide.id}>{slide.category}: {slide.title}</li>
+            ))}
+          </ul>
+        </section>
       </main>
     </>
   );

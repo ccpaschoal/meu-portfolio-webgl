@@ -2,16 +2,37 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { sitesData } from './data/sites.js';
+import { spiralSlidesData } from './data/spiralSlides.js';
 import { getAssetUrl } from './utils/assets.js';
 
 /**
  * PORTFÓLIO WEBGL NATIVO — CAMILLA PASCHOAL
  * Narrativa Contínua em 4 Atos:
  * 00 / MATRIZ: Tríptico de Polaroids com desdobramento em leque
- * 01 / PELÍCULA: Fita Kodak 35mm contínua com ondulação física 3D (Sine-Wave), 4:5 e sem dead scroll
- * 02 / DIGITAL: 3 Smartphones 3D em arco dramático com chassi de titânio, safira e mouse tilt parallax
- * 03 / ARQUIVO: Deck VHS Master T-120 Dark Studio com botões monocromáticos e trava de scroll absoluta
+ * 01 / DIGITAL: 4 Smartphones 3D em carrossel circular com profundidade da frente para trás
+ * 02 / ESPIRAL: Escada em Espiral 3D dos Carrosséis (Camilla, AURA e Vanessa Chaves)
+ * 03 / CONTATO: Mockups de Browser Flutuando & Tipografia "ADAPTÁVEL. DO SEU JEITO."
  */
+
+// Hélice do Ato 02: raio, descida por lâmina e giro por lâmina (~30°)
+// depth: recuo do eixo da hélice em z (a lâmina da frente fica em z = radius + depth)
+const SPIRAL = { radius: 520, pitch: 140, angleStep: 0.52, depth: -330 };
+
+// Carrega uma única vez as webfonts usadas nos textos desenhados em canvas.
+// O primeiro desenho pode sair com fonte de sistema; quando a promessa resolve, os canvases são redesenhados.
+let canvasFontsPromise = null;
+function canvasFontsReady() {
+  if (!canvasFontsPromise) {
+    const faces = [
+      '400 22px "Space Mono"', '700 44px "Space Mono"',
+      '400 36px "Inter"', '600 30px "Inter"', '700 48px "Inter"', '800 64px "Inter"'
+    ];
+    canvasFontsPromise = typeof document !== 'undefined' && document.fonts
+      ? Promise.all(faces.map(f => document.fonts.load(f))).then(() => document.fonts.ready).catch(() => {})
+      : Promise.resolve();
+  }
+  return canvasFontsPromise;
+}
 
 /* -------------------------------------------------------------
  * FUNÇÕES AUXILIARES DE GEOMETRIA E TEXTURA
@@ -86,10 +107,8 @@ export class PortfolioScene {
     this.vMouse3D = new THREE.Vector3(99999, 99999, 0);
     this.planeDepth = -485;
 
-    // Controle reativo de tracking glitch analógico do VHS
-    this.isGlitching = false;
-    this.glitchUntil = 0;
-    this.nextRandomGlitchTime = performance.now() + 6000 + Math.random() * 2000;
+    this._disposed = false;
+    this.spiralTexturesRequested = false;
 
     this.initRenderer();
     this.initScene();
@@ -100,9 +119,9 @@ export class PortfolioScene {
 
     // 2. Os 4 Atos Narrativos
     this.buildChapter00(); // Tríptico de Polaroids
-    this.buildChapter01(); // Fita Kodak 35mm com Ondulação 3D e 4:5
-    this.buildChapter02(); // 3 Smartphones com Hardware Exposto e Mouse Tilt
-    this.buildChapter03(); // Deck VHS Dark Studio com Trava Firme
+    this.buildChapter01(); // 4 Smartphones 3D em Carrossel Circular com Profundidade
+    this.buildChapter02(); // Escada em Espiral 3D dos Carrosséis (Helix 3D)
+    this.buildChapter03(); // Mockups de Browser Flutuando & "Adaptável. Do seu jeito."
     this.updateResponsiveLayout();
 
     // 3. Master Timeline GSAP Contínua
@@ -136,7 +155,10 @@ export class PortfolioScene {
     this.camera.lookAt(0, 0, 0);
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    const room = new RoomEnvironment();
+    this.envRenderTarget = pmrem.fromScene(room, 0.04);
+    this.envMap = this.envRenderTarget.texture;
+    room.dispose?.();
     pmrem.dispose();
   }
 
@@ -162,6 +184,13 @@ export class PortfolioScene {
       this.chapter02Group,
       this.chapter03Group
     );
+
+    // [grupo, força em Y, força em X] do parallax do mouse por ato
+    this.parallaxGroups = [
+      [this.chapter01Group, 0.10, 0.08],
+      [this.chapter02Group, 0.06, 0.05],
+      [this.chapter03Group, 0.05, 0.04]
+    ];
   }
 
   initLighting() {
@@ -178,11 +207,11 @@ export class PortfolioScene {
     this.wineRimLight.position.set(-650, -250, -350);
     this.scene.add(this.wineRimLight);
 
-    // Luz de recorte dedicada para a fita de película Kodak (#a5b4fc)
-    this.filmRimLight = new THREE.SpotLight(0xa5b4fc, 0.0, 3400, Math.PI / 4, 0.35, 1.2);
-    this.filmRimLight.position.set(250, 380, -180);
-    this.filmRimLight.target.position.set(0, 0, 0);
-    this.scene.add(this.filmRimLight, this.filmRimLight.target);
+    // Luz de recorte da espiral de carrosséis do Ato 02 (#a5b4fc)
+    this.spiralRimLight = new THREE.SpotLight(0xa5b4fc, 0.0, 3400, Math.PI / 4, 0.35, 1.2);
+    this.spiralRimLight.position.set(250, 380, -180);
+    this.spiralRimLight.target.position.set(0, 0, 0);
+    this.scene.add(this.spiralRimLight, this.spiralRimLight.target);
 
     // Luz de recorte especular focada nos smartphones e lentes de safira (#93c5fd)
     this.phoneRimLight = new THREE.SpotLight(0x93c5fd, 0.0, 3600, Math.PI / 3, 0.45, 1.1);
@@ -366,30 +395,33 @@ export class PortfolioScene {
     const leftCanvas = document.createElement('canvas');
     leftCanvas.width = 1024; leftCanvas.height = 1024;
     const ctxL = leftCanvas.getContext('2d');
-    ctxL.fillStyle = '#0a0d14'; ctxL.fillRect(0, 0, 1024, 1024);
+    const drawLeft = () => {
+      ctxL.fillStyle = '#0a0d14'; ctxL.fillRect(0, 0, 1024, 1024);
 
-    // Tag superior nítida
-    ctxL.font = '700 44px "Space Mono", monospace'; ctxL.fillStyle = '#3b82f6';
-    ctxL.fillText('00 / IDENTIDADE', 75, 145);
+      // Tag superior nítida
+      ctxL.font = '700 44px "Space Mono", monospace'; ctxL.fillStyle = '#3b82f6';
+      ctxL.fillText('00 / IDENTIDADE', 75, 145);
 
-    // Linha divisória cobalto
-    ctxL.strokeStyle = 'rgba(59, 130, 246, 0.4)'; ctxL.lineWidth = 3.5;
-    ctxL.beginPath(); ctxL.moveTo(75, 175); ctxL.lineTo(420, 175); ctxL.stroke();
+      // Linha divisória cobalto
+      ctxL.strokeStyle = 'rgba(59, 130, 246, 0.4)'; ctxL.lineWidth = 3.5;
+      ctxL.beginPath(); ctxL.moveTo(75, 175); ctxL.lineTo(420, 175); ctxL.stroke();
 
-    // Nome em destaque editorial ampliado
-    ctxL.font = '700 96px "Inter", sans-serif'; ctxL.fillStyle = '#ffffff';
-    ctxL.fillText('CAMILLA', 75, 305);
-    ctxL.fillText('PASCHOAL', 75, 405);
+      // Nome em destaque editorial ampliado
+      ctxL.font = '700 96px "Inter", sans-serif'; ctxL.fillStyle = '#ffffff';
+      ctxL.fillText('CAMILLA', 75, 305);
+      ctxL.fillText('PASCHOAL', 75, 405);
 
-    // Cargos com tamanho e contraste reforçados
-    ctxL.font = '700 50px "Space Mono", monospace'; ctxL.fillStyle = '#f8fafc';
-    ctxL.fillText('SOCIAL MEDIA DESIGNER', 75, 565);
-    ctxL.fillText('WEB DEVELOPER', 75, 645);
-    ctxL.fillText('AI PRODUCT BUILDER', 75, 725);
+      // Cargos com tamanho e contraste reforçados
+      ctxL.font = '700 50px "Space Mono", monospace'; ctxL.fillStyle = '#f8fafc';
+      ctxL.fillText('SOCIAL MEDIA DESIGNER', 75, 565);
+      ctxL.fillText('WEB DEVELOPER', 75, 645);
+      ctxL.fillText('AI PRODUCT BUILDER', 75, 725);
 
-    // Subtítulo de atuação
-    ctxL.font = '400 36px "Inter", sans-serif'; ctxL.fillStyle = '#94a3b8';
-    ctxL.fillText('Rio de Janeiro, Brasil · Global Delivery', 75, 835);
+      // Subtítulo de atuação
+      ctxL.font = '400 36px "Inter", sans-serif'; ctxL.fillStyle = '#94a3b8';
+      ctxL.fillText('Rio de Janeiro, Brasil · Global Delivery', 75, 835);
+    };
+    drawLeft();
 
     const leftTex = new THREE.CanvasTexture(leftCanvas);
     leftTex.colorSpace = THREE.SRGBColorSpace;
@@ -429,36 +461,39 @@ export class PortfolioScene {
     const rightCanvas = document.createElement('canvas');
     rightCanvas.width = 1024; rightCanvas.height = 1024;
     const ctxR = rightCanvas.getContext('2d');
-    ctxR.fillStyle = '#0a0d14'; ctxR.fillRect(0, 0, 1024, 1024);
+    const drawRight = () => {
+      ctxR.fillStyle = '#0a0d14'; ctxR.fillRect(0, 0, 1024, 1024);
 
-    // Tag superior
-    ctxR.font = '700 44px "Space Mono", monospace'; ctxR.fillStyle = '#ef4444';
-    ctxR.fillText('00 / PRÁTICA & VISÃO', 75, 145);
+      // Tag superior
+      ctxR.font = '700 44px "Space Mono", monospace'; ctxR.fillStyle = '#ef4444';
+      ctxR.fillText('00 / PRÁTICA & VISÃO', 75, 145);
 
-    // Linha divisória rubi
-    ctxR.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctxR.lineWidth = 3.5;
-    ctxR.beginPath(); ctxR.moveTo(75, 175); ctxR.lineTo(440, 175); ctxR.stroke();
+      // Linha divisória rubi
+      ctxR.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctxR.lineWidth = 3.5;
+      ctxR.beginPath(); ctxR.moveTo(75, 175); ctxR.lineTo(440, 175); ctxR.stroke();
 
-    // 1. Social Media Design
-    ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
-    ctxR.fillText('SOCIAL MEDIA DESIGN', 75, 255);
-    ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
-    ctxR.fillText('Carrosséis contínuos e direção de arte', 75, 305);
-    ctxR.fillText('estratégica para retenção e autoridade.', 75, 350);
+      // 1. Social Media Design
+      ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
+      ctxR.fillText('SOCIAL MEDIA DESIGN', 75, 255);
+      ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
+      ctxR.fillText('Carrosséis contínuos e direção de arte', 75, 305);
+      ctxR.fillText('estratégica para retenção e autoridade.', 75, 350);
 
-    // 2. Web Development
-    ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
-    ctxR.fillText('WEB DEVELOPMENT', 75, 470);
-    ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
-    ctxR.fillText('Interfaces 3D imersivas com Three.js,', 75, 520);
-    ctxR.fillText('WebGL e arquitetura moderna veloz.', 75, 565);
+      // 2. Web Development
+      ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
+      ctxR.fillText('WEB DEVELOPMENT', 75, 470);
+      ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
+      ctxR.fillText('Interfaces 3D imersivas com Three.js,', 75, 520);
+      ctxR.fillText('WebGL e arquitetura moderna veloz.', 75, 565);
 
-    // 3. AI Product Builder
-    ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
-    ctxR.fillText('AI PRODUCT BUILDER', 75, 685);
-    ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
-    ctxR.fillText('Produtos e ecossistemas impulsionados', 75, 735);
-    ctxR.fillText('por inteligência artificial e automação.', 75, 780);
+      // 3. AI Product Builder
+      ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
+      ctxR.fillText('AI PRODUCT BUILDER', 75, 685);
+      ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
+      ctxR.fillText('Produtos e ecossistemas impulsionados', 75, 735);
+      ctxR.fillText('por inteligência artificial e automação.', 75, 780);
+    };
+    drawRight();
 
     const rightTex = new THREE.CanvasTexture(rightCanvas);
     rightTex.colorSpace = THREE.SRGBColorSpace;
@@ -471,6 +506,15 @@ export class PortfolioScene {
     }));
     rightInner.position.set(0, 36, 1.2);
     this.rightPolaroid.add(rightFrame, rightInner, rightShadow);
+
+    // Redesenha os textos das polaroids com as webfonts definitivas
+    canvasFontsReady().then(() => {
+      if (this._disposed) return;
+      drawLeft();
+      leftTex.needsUpdate = true;
+      drawRight();
+      rightTex.needsUpdate = true;
+    });
 
     this.polaroidMaterials = [frameMat, leftInner.material, centerInner.material, rightInner.material, shadowMat];
     this.polaroidMaterials.forEach(material => {
@@ -490,246 +534,66 @@ export class PortfolioScene {
   }
 
   /* ==========================================================================
-     ATO 01: FITA KODAK 35MM COM ONDULAÇÃO FÍSICA 3D (SINE WAVE), 4:5 E SEM DEAD SCROLL
+     ATO 01: 4 SMARTPHONES 3D EM CARROSSEL CIRCULAR COM PROFUNDIDADE
      ========================================================================== */
   buildChapter01() {
-    this.kodakFilmStrip = new THREE.Group();
-    const loader = new THREE.TextureLoader();
-
-    // 6 lâminas contínuas da Apresentação (Aura removido conforme solicitação)
-    const slidePaths = [
-      getAssetUrl('assets/carrosseis/0-apresentacao/1.webp'),
-      getAssetUrl('assets/carrosseis/0-apresentacao/2.webp'),
-      getAssetUrl('assets/carrosseis/0-apresentacao/3.webp'),
-      getAssetUrl('assets/carrosseis/0-apresentacao/4.webp'),
-      getAssetUrl('assets/carrosseis/0-apresentacao/5.webp'),
-      getAssetUrl('assets/carrosseis/0-apresentacao/6.webp')
-    ];
-
-    // Dimensões editoriais: Fotograma 176x220 (proporção 4:5 matemática exata: 220 * 0.8 = 176)
-    // Fita com 280 unidades (30 unidades de borda perfurada no topo e 30 na base)
-    const FRAME_W = 176;
-    const FRAME_H = 220;
-    const RIBBON_H = 280;
-    const LEADER_W = 176;
-    const TAIL_W = 176;
-
-    // Curvatura espacial 3D em profundidade Z (alinhamento editorial perfeito com delta Y = 0 entre lâminas)
-    const zOffset = (x) => Math.sin(x * 0.0032) * 68.0;
-    const rotYOffset = (x) => -Math.cos(x * 0.0032) * 0.218;
-
-    // Cálculo das coordenadas horizontais:
-    // Alinhamento Inicial: Slide 0 de Apresentação nasce EXATAMENTE em X = 0 (centro da lente)
-    // O Leader fica à esquerda de Slide 0: x = -190
-    const leaderCenterX = -190;
-    const minX = leaderCenterX - LEADER_W / 2 - 20;
-
-    const positionsX = [];
-    let curX = 0; // Centro do Slide 0
-
-    for (let i = 0; i < slidePaths.length; i++) {
-      positionsX.push(curX);
-      curX += FRAME_W; // gap 0 perfeito nas 6 lâminas panorâmicas contínuas da Apresentação
-    }
-
-    const tailCenterX = curX + TAIL_W / 2 + 10;
-    const maxX = tailCenterX + TAIL_W / 2 + 20;
-    const TOTAL_W = maxX - minX;
-    this.totalFilmWidth = TOTAL_W;
-
-    // 1. Malha geométrica de referência (fita oculta para manter as fotos flutuando 100% puras e sem moldura preta)
-    const segmentsX = Math.max(180, Math.floor(TOTAL_W / 10));
-    const ribbonGeo = new THREE.PlaneGeometry(TOTAL_W, RIBBON_H, segmentsX, 2);
-    const rpos = ribbonGeo.attributes.position;
-    const ribbonCenterX = minX + TOTAL_W / 2;
-    for (let i = 0; i < rpos.count; i++) {
-      const vx = rpos.getX(i);
-      const gx = vx + ribbonCenterX;
-      rpos.setZ(i, zOffset(gx));
-    }
-    rpos.needsUpdate = true;
-    ribbonGeo.computeVertexNormals();
-
-    const ribbonMat = new THREE.MeshStandardMaterial({
-      color: 0x070709,
-      roughness: 0.18,
-      metalness: 0.88,
-      side: THREE.DoubleSide
-    });
-    const ribbonMesh = new THREE.Mesh(ribbonGeo, ribbonMat);
-    ribbonMesh.position.set(ribbonCenterX, 0, 0);
-    ribbonMesh.visible = false; // Moldura da fita removida: fotos flutuam puras
-    this.kodakFilmStrip.add(ribbonMesh);
-
-    // 2. Leader inicial oculto
-    const leaderCanvas = document.createElement('canvas');
-    leaderCanvas.width = 512; leaderCanvas.height = 700;
-    const lctx = leaderCanvas.getContext('2d');
-    lctx.fillStyle = '#08080a'; lctx.fillRect(0, 0, 512, 700);
-    const leaderTex = new THREE.CanvasTexture(leaderCanvas);
-
-    const leaderGeo = new THREE.PlaneGeometry(LEADER_W, FRAME_H, 20, 2);
-    const lpos = leaderGeo.attributes.position;
-    const lrotY = rotYOffset(leaderCenterX);
-    const lcosR = Math.cos(lrotY);
-    const lsinR = Math.sin(lrotY);
-    const lpz = zOffset(leaderCenterX) + 2.5;
-    for (let k = 0; k < lpos.count; k++) {
-      const lx = lpos.getX(k);
-      const gx = leaderCenterX + lx * lcosR;
-      const targetWorldZ = zOffset(gx) + 2.5;
-      const lz = (targetWorldZ - (lpz - lx * lsinR)) / lcosR;
-      lpos.setZ(k, lz);
-    }
-    lpos.needsUpdate = true;
-    leaderGeo.computeVertexNormals();
-
-    const leaderMesh = new THREE.Mesh(
-      leaderGeo,
-      new THREE.MeshBasicMaterial({ map: leaderTex, visible: false })
-    );
-    leaderMesh.position.set(leaderCenterX, 0, lpz);
-    leaderMesh.rotation.y = lrotY;
-    leaderMesh.visible = false;
-    this.kodakFilmStrip.add(leaderMesh);
-
-    // 3. Perfurações ocultas (fotos limpas sem interferência de furos)
-    const perfGeo = new THREE.PlaneGeometry(10, 18);
-    const perfMat = new THREE.MeshBasicMaterial({ color: 0x000000, visible: false });
-    const numPerfs = Math.floor(TOTAL_W / 32);
-    for (let i = 0; i < numPerfs; i++) {
-      const px = minX + i * 32 + 16;
-      const pz = zOffset(px) + 1.2;
-      const rotY = rotYOffset(px);
-
-      const topP = new THREE.Mesh(perfGeo, perfMat);
-      topP.position.set(px, 125, pz);
-      topP.rotation.y = rotY;
-      topP.visible = false;
-
-      const botP = new THREE.Mesh(perfGeo, perfMat);
-      botP.position.set(px, -125, pz);
-      botP.rotation.y = rotY;
-      botP.visible = false;
-
-      this.kodakFilmStrip.add(topP, botP);
-    }
-
-    // 4. Instanciação das 10 lâminas (Lâminas Livres e Soltas no Espaço 3D)
-    // As fotos surgem soltas, flutuando com autonomia e perfeitamente alinhadas nos panoramas
-    this.filmSlides = [];
-    slidePaths.forEach((src, idx) => {
-      const tex = loader.load(src);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.generateMipmaps = true;
-      tex.minFilter = THREE.LinearMipmapLinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      tex.anisotropy = this.maxAniso;
-
-      const mat = new THREE.MeshStandardMaterial({
-        map: tex,
-        side: THREE.DoubleSide,
-        roughness: 0.28,
-        metalness: 0.08,
-        envMapIntensity: 1.6,
-        transparent: true,
-        opacity: 1.0
-      });
-
-      const px = positionsX[idx];
-      const rotY = rotYOffset(px);
-      const cosR = Math.cos(rotY);
-      const sinR = Math.sin(rotY);
-      const pz = zOffset(px) + 2.5;
-
-      const slideGeo = new THREE.PlaneGeometry(FRAME_W, FRAME_H, 24, 2);
-      const spos = slideGeo.attributes.position;
-      for (let k = 0; k < spos.count; k++) {
-        const lx = spos.getX(k);
-        const gx = px + lx * cosR;
-        const targetWorldZ = zOffset(gx) + 2.5;
-        const lz = (targetWorldZ - (pz - lx * sinR)) / cosR;
-        spos.setZ(k, lz);
-      }
-      spos.needsUpdate = true;
-      slideGeo.computeVertexNormals();
-
-      const mesh = new THREE.Mesh(slideGeo, mat);
-      mesh.position.set(px, 0, pz);
-      mesh.rotation.y = rotY;
-      mesh.userData = {
-        index: idx,
-        baseX: px,
-        baseY: 0,
-        baseZ: pz,
-        baseRotY: rotY,
-        baseRotZ: 0
-      };
-      this.filmSlides.push(mesh);
-      this.kodakFilmStrip.add(mesh);
-    });
-
-    // 5. Tail final oculto
-    const tailCanvas = document.createElement('canvas');
-    tailCanvas.width = 512; tailCanvas.height = 700;
-    const tailTex = new THREE.CanvasTexture(tailCanvas);
-    const tailGeo = new THREE.PlaneGeometry(TAIL_W, FRAME_H, 20, 2);
-    const tailMesh = new THREE.Mesh(
-      tailGeo,
-      new THREE.MeshBasicMaterial({ map: tailTex, visible: false })
-    );
-    tailMesh.position.set(tailCenterX, 0, zOffset(tailCenterX) + 2.5);
-    tailMesh.rotation.y = rotYOffset(tailCenterX);
-    tailMesh.visible = false;
-    this.kodakFilmStrip.add(tailMesh);
-
-    this.tailCenterX = tailCenterX;
-    this.maxFilmX = maxX;
-    this.chapter01Group.add(this.kodakFilmStrip);
-  }
-
-  /* ==========================================================================
-     ATO 02: SMARTPHONE HERO AMPLIADO MONOLÍTICO, RESOLUÇÃO 1:1 E PLATÔ DE LEITURA
-     ========================================================================== */
-  buildChapter02() {
-    this.phoneHero = new THREE.Group();
     this.activeSiteIndex = 0;
+    this.carouselAngle = 0;
+    this.carouselState = { angle: 0 };
+    this.mockups = [];
+    this.mockupMaterials = [];
+    this.carouselRingGroup = new THREE.Group();
+
+    // 1. Canvases e texturas independentes para cada um dos 4 sites
+    this.siteScreenCanvases = [];
+    this.siteScreenTextures = [];
     this.siteImages = sitesData.map((site, index) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 780;
+      canvas.height = 1688;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#0b0e16';
+        ctx.fillRect(0, 0, 780, 1688);
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.generateMipmaps = true;
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      if (this.renderer.capabilities.getMaxAnisotropy) {
+        texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      }
+
+      this.siteScreenCanvases.push(canvas);
+      this.siteScreenTextures.push(texture);
+
       const image = new Image();
       image.onload = () => {
-        if (index === this.activeSiteIndex && !this.siteTransition?.isActive()) {
-          this.drawSiteSlide(index, index, 0, 1);
+        if (ctx) {
+          ctx.drawImage(image, 0, 0, 780, 1688);
+          texture.needsUpdate = true;
         }
       };
       image.src = getAssetUrl(site.image || site.thumb);
       return image;
     });
 
-    // Resolução nativa exata 1:1 dos prints mobile (780 x 1688)
-    this.siteScreenCanvas = document.createElement('canvas');
-    this.siteScreenCanvas.width = 780;
-    this.siteScreenCanvas.height = 1688;
+    // Compatibilidade com referências legadas
+    this.siteScreenCanvas = this.siteScreenCanvases[0];
     this.siteScreenCtx = this.siteScreenCanvas.getContext('2d');
-    this.siteScreenTexture = new THREE.CanvasTexture(this.siteScreenCanvas);
-    this.siteScreenTexture.colorSpace = THREE.SRGBColorSpace;
-    this.siteScreenTexture.generateMipmaps = true;
-    this.siteScreenTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    this.siteScreenTexture.magFilter = THREE.LinearFilter;
-    if (this.renderer.capabilities.getMaxAnisotropy) {
-      this.siteScreenTexture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    }
-    this.drawSiteSlide(0, 0, 0, 1);
+    this.siteScreenTexture = this.siteScreenTextures[0];
 
-    // Dimensões ampliadas do Smartphone Hero (~45% maior, proporção 1:1 exata com os prints mobile 780x1688)
-    const PHONE_W = 224;
-    const PHONE_H = 480;
-    const PHONE_D = 15;
-    const BEVEL = 3.5;
-    const SCREEN_W = 212;
-    const SCREEN_H = 458.8; // 212 * (1688 / 780) = 458.815 (proporção matemática 1:1 sem distorção)
+    // 2. Geometrias compartilhadas dos mockups (alta performance e baixo overhead de memória)
+    const PHONE_W = 208;
+    const PHONE_H = 446;
+    const PHONE_D = 14;
+    const BEVEL = 3.0;
+    const SCREEN_W = 196;
+    const SCREEN_H = 424.2; // 196 * (1688 / 780) proporção 1:1 exata
 
-    // 1. Chassi usinado em titânio escovado com cantos arredondados e chanfro usinado
-    const chassisGeo = new THREE.ExtrudeGeometry(roundedRectShape(PHONE_W, PHONE_H, 26), {
+    const chassisGeo = new THREE.ExtrudeGeometry(roundedRectShape(PHONE_W, PHONE_H, 25), {
       depth: PHONE_D,
       bevelEnabled: true,
       bevelSegments: 4,
@@ -738,43 +602,43 @@ export class PortfolioScene {
     });
     chassisGeo.center();
 
+    const screenGeo = roundedRectGeometry(SCREEN_W, SCREEN_H, 19);
+    const pillGeo = roundedRectGeometry(44, 13, 6.5);
+    const selfieLensGeo = new THREE.CircleGeometry(2.8, 16);
+    const glassGeo = roundedRectGeometry(SCREEN_W + 2, SCREEN_H + 2, 20);
+    const backGeo = roundedRectGeometry(PHONE_W - 2, PHONE_H - 2, 24);
+
+    const islandGeo = new THREE.ExtrudeGeometry(roundedRectShape(88, 92, 19), {
+      depth: 3.2,
+      bevelEnabled: true,
+      bevelSize: 1.6,
+      bevelThickness: 1.6,
+      bevelSegments: 3
+    });
+    islandGeo.center();
+
+    const ringGeo = new THREE.CylinderGeometry(15, 15, 3.8, 32);
+    const lensGlassGeo = new THREE.CircleGeometry(12.8, 32);
+    const flashGeo = new THREE.CircleGeometry(5.5, 20);
+    const lidarGeo = new THREE.CircleGeometry(6.0, 20);
+
+    const powerBtnGeo = new THREE.BoxGeometry(2.4, 52, 5.5);
+    const volUpGeo = new THREE.BoxGeometry(2.4, 34, 5.5);
+    const volDownGeo = new THREE.BoxGeometry(2.4, 34, 5.5);
+    const actionBtnGeo = new THREE.BoxGeometry(2.4, 19, 5.5);
+    const usbcGeo = new THREE.BoxGeometry(17, 4.8, 2);
+
+    // 3. Materiais compartilhados
     const titaniumMat = new THREE.MeshStandardMaterial({
       color: 0x363a46,
       metalness: 0.92,
       roughness: 0.22,
-      envMapIntensity: 2.2
+      envMapIntensity: 2.2,
+      transparent: true,
+      opacity: 1.0
     });
-    const chassis = new THREE.Mesh(chassisGeo, titaniumMat);
-    this.phoneHero.add(chassis);
-
-    // 2. Display frontal OLED com cantos arredondados e textura do site em alta resolução
-    const screenGeo = roundedRectGeometry(SCREEN_W, SCREEN_H, 20);
-    const screenMat = new THREE.MeshBasicMaterial({
-      map: this.siteScreenTexture,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
-    });
-    const screen = new THREE.Mesh(screenGeo, screenMat);
-    screen.position.set(0, 0, PHONE_D / 2 + BEVEL + 0.1);
-    this.phoneHero.add(screen);
-
-    // 3. Dynamic Island pill & selfie camera no topo da tela
-    const pillGeo = roundedRectGeometry(46, 14, 7);
-    const pillMat = new THREE.MeshBasicMaterial({ color: 0x020306 });
-    const pill = new THREE.Mesh(pillGeo, pillMat);
-    pill.position.set(0, SCREEN_H / 2 - 22, PHONE_D / 2 + BEVEL + 0.2);
-
-    const selfieMat = new THREE.MeshBasicMaterial({ color: 0x08182c });
-    const selfieLens = new THREE.Mesh(
-      new THREE.CircleGeometry(3, 16),
-      selfieMat
-    );
-    selfieLens.position.set(11, SCREEN_H / 2 - 22, PHONE_D / 2 + BEVEL + 0.25);
-    this.phoneHero.add(pill, selfieLens);
-
-    // 4. Vidro frontal com clearcoat especular e reflexo de estúdio
-    const glassGeo = roundedRectGeometry(SCREEN_W + 2, SCREEN_H + 2, 21);
+    const pillMat = new THREE.MeshBasicMaterial({ color: 0x020306, transparent: true, opacity: 1.0 });
+    const selfieMat = new THREE.MeshBasicMaterial({ color: 0x08182c, transparent: true, opacity: 1.0 });
     const frontGlassMat = new THREE.MeshPhysicalMaterial({
       color: 0x05070a,
       roughness: 0.1,
@@ -785,200 +649,241 @@ export class PortfolioScene {
       opacity: 0.08,
       depthWrite: false
     });
-    const glassFront = new THREE.Mesh(glassGeo, frontGlassMat);
-    glassFront.position.set(0, 0, PHONE_D / 2 + BEVEL + 0.35);
-    this.phoneHero.add(glassFront);
-
-    // 5. Painel traseiro em vidro fosco acetinado
-    const backGeo = roundedRectGeometry(PHONE_W - 2, PHONE_H - 2, 25);
     const backMat = new THREE.MeshStandardMaterial({
       color: 0x181a22,
       roughness: 0.42,
       metalness: 0.22,
-      envMapIntensity: 1.5
+      envMapIntensity: 1.5,
+      transparent: true,
+      opacity: 1.0
     });
-    const back = new THREE.Mesh(backGeo, backMat);
-    back.position.set(0, 0, -PHONE_D / 2 - BEVEL - 0.1);
-    back.rotation.y = Math.PI;
-    this.phoneHero.add(back);
-
-    // 6. Módulo de câmaras traseiras com relevo (bump island) e cantos curvos
-    const islandGeo = new THREE.ExtrudeGeometry(roundedRectShape(92, 98, 20), {
-      depth: 3.5,
-      bevelEnabled: true,
-      bevelSize: 1.8,
-      bevelThickness: 1.8,
-      bevelSegments: 3
-    });
-    islandGeo.center();
-    const island = new THREE.Mesh(islandGeo, titaniumMat);
-    island.position.set(-PHONE_W / 2 + 56, PHONE_H / 2 - 62, -PHONE_D / 2 - BEVEL - 3.5);
-    island.rotation.y = Math.PI;
-    this.phoneHero.add(island);
-
-    // 3 Lentes ópticas de safira com aros metálicos usinados em relevo
-    const ringGeo = new THREE.CylinderGeometry(16, 16, 4.0, 32);
     const ringMat = new THREE.MeshStandardMaterial({
       color: 0x5a6072,
       metalness: 0.95,
-      roughness: 0.12
+      roughness: 0.12,
+      transparent: true,
+      opacity: 1.0
     });
-    const lensGlassGeo = new THREE.CircleGeometry(13.5, 32);
     const lensGlassMat = new THREE.MeshPhysicalMaterial({
       color: 0x08101e,
       roughness: 0.04,
       metalness: 0.1,
       clearcoat: 1.0,
-      clearcoatRoughness: 0.04
+      clearcoatRoughness: 0.04,
+      transparent: true,
+      opacity: 1.0
     });
-
-    const lensCoords = [
-      { dx: -22, dy: 24 },
-      { dx: -22, dy: -24 },
-      { dx: 24, dy: 0 }
-    ];
-    lensCoords.forEach(c => {
-      const ring = new THREE.Mesh(ringGeo, ringMat);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(island.position.x + c.dx, island.position.y + c.dy, -PHONE_D / 2 - BEVEL - 6.0);
-
-      const lens = new THREE.Mesh(lensGlassGeo, lensGlassMat);
-      lens.position.set(island.position.x + c.dx, island.position.y + c.dy, -PHONE_D / 2 - BEVEL - 8.2);
-      lens.rotation.y = Math.PI;
-
-      this.phoneHero.add(ring, lens);
-    });
-
-    // Flash & LiDAR
-    const flashMat = new THREE.MeshBasicMaterial({ color: 0xfff4d0 });
-    const flash = new THREE.Mesh(new THREE.CircleGeometry(6, 20), flashMat);
-    flash.position.set(island.position.x + 24, island.position.y + 26, -PHONE_D / 2 - BEVEL - 5.5);
-    flash.rotation.y = Math.PI;
-
-    const lidarMat = new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.1, metalness: 0.9 });
-    const lidar = new THREE.Mesh(new THREE.CircleGeometry(6.5, 20), lidarMat);
-    lidar.position.set(island.position.x + 24, island.position.y - 26, -PHONE_D / 2 - BEVEL - 5.5);
-    lidar.rotation.y = Math.PI;
-
-    this.phoneHero.add(flash, lidar);
-
-    // 7. Botões físicos metálicos no perfil de titânio (Power, Volume e Ação)
+    const flashMat = new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: 1.0 });
+    const lidarMat = new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 1.0 });
     const btnMat = new THREE.MeshStandardMaterial({
       color: 0x4e5362,
       metalness: 0.94,
-      roughness: 0.18
+      roughness: 0.18,
+      transparent: true,
+      opacity: 1.0
     });
-    // Botão Power / Lateral direita
-    const powerBtn = new THREE.Mesh(new THREE.BoxGeometry(2.5, 54, 6), btnMat);
-    powerBtn.position.set(PHONE_W / 2 + BEVEL + 1.25, 42, 0);
+    const usbcMat = new THREE.MeshBasicMaterial({ color: 0x06070a, transparent: true, opacity: 1.0 });
 
-    // Botões Volume Up, Down e Ação / Lateral esquerda
-    const volUpBtn = new THREE.Mesh(new THREE.BoxGeometry(2.5, 36, 6), btnMat);
-    volUpBtn.position.set(-PHONE_W / 2 - BEVEL - 1.25, 52, 0);
-
-    const volDownBtn = new THREE.Mesh(new THREE.BoxGeometry(2.5, 36, 6), btnMat);
-    volDownBtn.position.set(-PHONE_W / 2 - BEVEL - 1.25, 8, 0);
-
-    const actionBtn = new THREE.Mesh(new THREE.BoxGeometry(2.5, 20, 6), btnMat);
-    actionBtn.position.set(-PHONE_W / 2 - BEVEL - 1.25, 96, 0);
-
-    // Porta USB-C na base
-    const usbcMat = new THREE.MeshBasicMaterial({ color: 0x06070a });
-    const usbc = new THREE.Mesh(
-      new THREE.BoxGeometry(18, 5, 2),
-      usbcMat
-    );
-    usbc.position.set(0, -PHONE_H / 2 - BEVEL - 0.5, 0);
-
-    this.phoneHero.add(powerBtn, volUpBtn, volDownBtn, actionBtn, usbc);
-
-    // Coleção de materiais do celular para desvanecimento progressivo no recuo
-    this.phoneMaterials = [
-      titaniumMat,
-      screenMat,
-      pillMat,
-      selfieMat,
-      backMat,
-      ringMat,
-      lensGlassMat,
-      flashMat,
-      lidarMat,
-      btnMat,
-      usbcMat
+    this.mockupMaterials = [
+      titaniumMat, pillMat, selfieMat, frontGlassMat, backMat,
+      ringMat, lensGlassMat, flashMat, lidarMat, btnMat, usbcMat
     ];
-    this.phoneMaterials.forEach(m => {
-      m.transparent = true;
-      m.opacity = 1.0;
+
+    const lensCoords = [
+      { dx: -21, dy: 22 },
+      { dx: -21, dy: -22 },
+      { dx: 23, dy: 0 }
+    ];
+
+    // 4. Constrói os 4 mockups em 3D
+    sitesData.forEach((site, i) => {
+      const mockup = new THREE.Group();
+
+      const chassis = new THREE.Mesh(chassisGeo, titaniumMat);
+      mockup.add(chassis);
+
+      const screenMat = new THREE.MeshBasicMaterial({
+        map: this.siteScreenTextures[i],
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
+        transparent: true,
+        opacity: 1.0
+      });
+      this.mockupMaterials.push(screenMat);
+
+      const screen = new THREE.Mesh(screenGeo, screenMat);
+      screen.position.set(0, 0, PHONE_D / 2 + BEVEL + 0.1);
+      mockup.add(screen);
+
+      const pill = new THREE.Mesh(pillGeo, pillMat);
+      pill.position.set(0, SCREEN_H / 2 - 20, PHONE_D / 2 + BEVEL + 0.2);
+      const selfie = new THREE.Mesh(selfieLensGeo, selfieMat);
+      selfie.position.set(10, SCREEN_H / 2 - 20, PHONE_D / 2 + BEVEL + 0.25);
+      mockup.add(pill, selfie);
+
+      const glassFront = new THREE.Mesh(glassGeo, frontGlassMat);
+      glassFront.position.set(0, 0, PHONE_D / 2 + BEVEL + 0.35);
+      mockup.add(glassFront);
+
+      const back = new THREE.Mesh(backGeo, backMat);
+      back.position.set(0, 0, -PHONE_D / 2 - BEVEL - 0.1);
+      back.rotation.y = Math.PI;
+      mockup.add(back);
+
+      const island = new THREE.Mesh(islandGeo, titaniumMat);
+      island.position.set(-PHONE_W / 2 + 54, PHONE_H / 2 - 58, -PHONE_D / 2 - BEVEL - 3.2);
+      island.rotation.y = Math.PI;
+      mockup.add(island);
+
+      lensCoords.forEach(c => {
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.set(island.position.x + c.dx, island.position.y + c.dy, -PHONE_D / 2 - BEVEL - 5.8);
+        const lens = new THREE.Mesh(lensGlassGeo, lensGlassMat);
+        lens.position.set(island.position.x + c.dx, island.position.y + c.dy, -PHONE_D / 2 - BEVEL - 7.9);
+        lens.rotation.y = Math.PI;
+        mockup.add(ring, lens);
+      });
+
+      const flash = new THREE.Mesh(flashGeo, flashMat);
+      flash.position.set(island.position.x + 23, island.position.y + 24, -PHONE_D / 2 - BEVEL - 5.2);
+      flash.rotation.y = Math.PI;
+      const lidar = new THREE.Mesh(lidarGeo, lidarMat);
+      lidar.position.set(island.position.x + 23, island.position.y - 24, -PHONE_D / 2 - BEVEL - 5.2);
+      lidar.rotation.y = Math.PI;
+      mockup.add(flash, lidar);
+
+      const powerBtn = new THREE.Mesh(powerBtnGeo, btnMat);
+      powerBtn.position.set(PHONE_W / 2 + BEVEL + 1.2, 40, 0);
+      const volUpBtn = new THREE.Mesh(volUpGeo, btnMat);
+      volUpBtn.position.set(-PHONE_W / 2 - BEVEL - 1.2, 50, 0);
+      const volDownBtn = new THREE.Mesh(volDownGeo, btnMat);
+      volDownBtn.position.set(-PHONE_W / 2 - BEVEL - 1.2, 8, 0);
+      const actionBtn = new THREE.Mesh(actionBtnGeo, btnMat);
+      actionBtn.position.set(-PHONE_W / 2 - BEVEL - 1.2, 92, 0);
+      const usbc = new THREE.Mesh(usbcGeo, usbcMat);
+      usbc.position.set(0, -PHONE_H / 2 - BEVEL - 0.5, 0);
+      mockup.add(powerBtn, volUpBtn, volDownBtn, actionBtn, usbc);
+
+      mockup.userData = {
+        index: i,
+        site: site,
+        url: site.link || site.href,
+        title: site.title,
+        isClickable: true,
+        baseScale: 1.0,
+        targetPos: { x: 0, y: 10, z: 330 },
+        onHoverStart: () => {
+          gsap.to(mockup.scale, {
+            x: (mockup.userData.baseScale || 1.0) * 1.04,
+            y: (mockup.userData.baseScale || 1.0) * 1.04,
+            z: (mockup.userData.baseScale || 1.0) * 1.04,
+            duration: 0.25,
+            ease: 'power2.out'
+          });
+        },
+        onHoverEnd: () => {
+          const bs = mockup.userData.baseScale || 1.0;
+          gsap.to(mockup.scale, { x: bs, y: bs, z: bs, duration: 0.25, ease: 'power2.out' });
+        }
+      };
+
+      this.mockups.push(mockup);
+      this.clickableObjects.push(mockup);
+      this.carouselRingGroup.add(mockup);
     });
+
+    this.phone = this.mockups[0];
+    this.phonesList = this.mockups;
+    this.phoneHero = this.mockups[0];
+    this.phoneMaterials = this.mockupMaterials;
     this.phoneFrontGlassMat = frontGlassMat;
+    // Materiais que vão a opacidade 1 (o vidro frontal fica em 0.08)
+    this.phoneOpaqueMaterials = this.mockupMaterials.filter(m => m !== frontGlassMat);
 
-    // Posição e rotação em perspectiva 3D cinematográfica (Apple Showcase Angle)
-    const baseRot = { x: 0.03, y: -0.14, z: 0.01 };
-    this.phoneHero.position.set(0, 10, 40);
-    this.phoneHero.rotation.set(baseRot.x, baseRot.y, baseRot.z);
+    this.carouselRingGroup.position.set(0, 10, -40);
+    this.carouselRingGroup.rotation.set(0.08, 0, 0);
+    this.chapter01Group.add(this.carouselRingGroup);
 
-    // Metadados interativos táteis para o Raycaster
-    this.phoneHero.userData = {
-      isClickable: true,
-      url: sitesData[0]?.link || sitesData[0]?.href || 'https://aconchegoeventos.pages.dev',
-      title: sitesData[0]?.title || 'Aconchego Festas e Eventos',
-      targetPos: { x: 0, y: 10, z: 40 },
-      targetRot: baseRot,
-      baseScale: 1.0,
-      onHoverStart: () => {
-        gsap.to(this.phoneHero.scale, { x: 1.03, y: 1.03, z: 1.03, duration: 0.3, ease: 'power2.out' });
-      },
-      onHoverEnd: () => {
-        gsap.to(this.phoneHero.scale, { x: 1.0, y: 1.0, z: 1.0, duration: 0.3, ease: 'power2.out' });
+    this.updateMockupCarouselPositions(0);
+  }
+
+  updateMockupCarouselPositions(angle) {
+    this.carouselAngle = angle;
+    if (!this.mockups || !this.mockups.length) return;
+    const NUM = this.mockups.length;
+    const RADIUS_X = 410;
+    const RADIUS_Z = 330;
+    const step = (Math.PI * 2) / NUM;
+
+    this.mockups.forEach((mockup, i) => {
+      const theta = angle + i * step;
+      const rawX = RADIUS_X * Math.sin(theta);
+      const rawZ = RADIUS_Z * Math.cos(theta);
+      const x = Math.abs(rawX) < 0.001 ? 0 : rawX;
+      const z = Math.abs(rawZ) < 0.001 ? 0 : rawZ; // z > 0: frente; z < 0: fundo/trás
+      const y = Math.sin(theta * 2 + 0.4) * 6;
+
+      mockup.position.set(x, y, z);
+
+      const frontFactor = (z / RADIUS_Z + 1) * 0.5;
+
+      const facingAngle = -theta;
+      const rotY = facingAngle * 0.42;
+      const rotX = 0.03 + (1.0 - frontFactor) * 0.06;
+      const rotZ = Math.sin(theta) * -0.035;
+
+      mockup.rotation.set(rotX, rotY, rotZ);
+
+      // Escala com profundidade: 1.05 na frente, 0.72 no fundo
+      const scale = THREE.MathUtils.lerp(0.72, 1.05, frontFactor);
+      mockup.scale.setScalar(scale);
+      mockup.userData.baseScale = scale;
+
+      mockup.renderOrder = Math.round(frontFactor * 50);
+
+      if (mockup.userData.targetPos) {
+        mockup.userData.targetPos.x = x;
+        mockup.userData.targetPos.y = y;
+        mockup.userData.targetPos.z = z;
       }
-    };
+    });
 
-    this.phone = this.phoneHero;
-    this.phonesList = [this.phoneHero];
-    this.clickableObjects.push(this.phoneHero);
-    this.chapter02Group.add(this.phoneHero);
+    let bestZ = -Infinity;
+    let frontIdx = 0;
+    this.mockups.forEach((m, idx) => {
+      if (m.position.z > bestZ) {
+        bestZ = m.position.z;
+        frontIdx = idx;
+      }
+    });
+
+    if (frontIdx !== this.activeSiteIndex) {
+      this.activeSiteIndex = frontIdx;
+      // Assinatura: (site, índice, total) — cada celular guarda o próprio link em userData
+      this.onSiteChange?.(sitesData[frontIdx], frontIdx, NUM);
+    }
   }
 
-  drawSiteSlide(fromIndex, toIndex, progress, direction) {
-    const ctx = this.siteScreenCtx;
-    if (!ctx) return;
-    const width = this.siteScreenCanvas.width;
-    const height = this.siteScreenCanvas.height;
-    ctx.fillStyle = '#0b0e16';
-    ctx.fillRect(0, 0, width, height);
-    const from = this.siteImages[fromIndex];
-    const to = this.siteImages[toIndex];
-    if (from?.naturalWidth) ctx.drawImage(from, -direction * progress * width, 0, width, height);
-    if (progress > 0 && to?.naturalWidth) {
-      ctx.drawImage(to, direction * (1 - progress) * width, 0, width, height);
-    }
-    this.siteScreenTexture.needsUpdate = true;
-  }
+  showSite(direction) {
+    if (this.siteTransition?.isActive()) return Promise.resolve(false);
+    const step = (Math.PI * 2) / sitesData.length;
+    const targetAngle = this.carouselState.angle - direction * step;
+    const nextIdx = (this.activeSiteIndex + direction + sitesData.length) % sitesData.length;
 
-  async showSite(direction) {
-    if (this.siteTransition?.isActive()) return false;
-    const next = (this.activeSiteIndex + direction + sitesData.length) % sitesData.length;
-    const current = this.activeSiteIndex;
-    try {
-      await Promise.all([this.siteImages[current].decode(), this.siteImages[next].decode()]);
-    } catch {
-      return false;
-    }
-    this.phone.userData.isClickable = false;
-    const state = { progress: 0 };
     return new Promise(resolve => {
-      this.siteTransition = gsap.to(state, {
-        progress: 1,
-        duration: this.reducedMotion.matches ? 0 : 0.58,
-        ease: 'power2.inOut',
-        onUpdate: () => this.drawSiteSlide(current, next, state.progress, direction),
+      this.siteTransition = gsap.to(this.carouselState, {
+        angle: targetAngle,
+        duration: this.reducedMotion.matches ? 0 : 0.72,
+        ease: 'power2.out',
+        onUpdate: () => {
+          this.updateMockupCarouselPositions(this.carouselState.angle);
+        },
         onComplete: () => {
-          this.activeSiteIndex = next;
-          this.drawSiteSlide(next, next, 0, 1);
-          this.phone.userData.url = sitesData[next].link;
-          this.phone.userData.title = sitesData[next].title;
-          this.phone.userData.isClickable = true;
-          this.onSiteChange?.(sitesData[next], next, sitesData.length);
+          this.activeSiteIndex = nextIdx;
+          this.updateMockupCarouselPositions(targetAngle);
+          this.onSiteChange?.(sitesData[nextIdx], nextIdx, sitesData.length);
           resolve(true);
         }
       });
@@ -998,619 +903,482 @@ export class PortfolioScene {
   }
 
   /* ==========================================================================
-     ATO 03: DECK VHS DARK STUDIO COM RÓTULO NÍTIDO, GLITCH CONTROLADO E TRAVA
+     ATO 02: ESCADA EM ESPIRAL 3D DOS CARROSSÉIS (HELIX 3D)
+     Unidades da cena: câmera em z=1100 (≈1 unidade = 1px no plano z=0)
      ========================================================================== */
-  buildChapter03() {
-    this.vhsCassette = new THREE.Group();
-    this.vhsCassette.position.set(0, -30, 0);
+  buildChapter02() {
+    this.spiralCarouselGroup = new THREE.Group();
+    this.chapter02Group.add(this.spiralCarouselGroup);
 
-    const CW = 560;
-    const CH = 308;
-    const bump = noiseTexture(256, 128, 90);
-    bump.repeat.set(1 / 60, 1 / 60);
+    this.spiralSlides = [];
+    this.spiralMaterials = [];
 
-    // Gabinete analógico plástico com textura bump
-    const plasticMat = new THREE.MeshStandardMaterial({
-      color: 0x14151a,
-      roughness: 0.82,
-      metalness: 0.08,
-      bumpMap: bump,
-      bumpScale: 1.4
-    });
-    const bodyGeo = new THREE.ExtrudeGeometry(roundedRectShape(CW, CH, 10), {
-      depth: 64,
-      bevelEnabled: true,
-      bevelSize: 2,
-      bevelThickness: 2,
-      bevelSegments: 2
-    });
-    bodyGeo.center();
-    const vhsBody = new THREE.Mesh(bodyGeo, plasticMat);
+    // Proporção 4:5 de carrossel do Instagram
+    const SLIDE_W = 222;
+    const SLIDE_H = 277.5;
+    const slideGeo = new THREE.PlaneGeometry(SLIDE_W, SLIDE_H);
+    const frameGeo = new THREE.BoxGeometry(SLIDE_W + 12, SLIDE_H + 12, 5);
+    const borderGeo = new THREE.EdgesGeometry(frameGeo);
 
-    // 1. Rótulo clássico VHS em ultra-resolução (2048 x 1024) com controle de glitch
-    this.cleanLabelCanvas = document.createElement('canvas');
-    this.cleanLabelCanvas.width = 2048;
-    this.cleanLabelCanvas.height = 1024;
-    const cleanCtx = this.cleanLabelCanvas.getContext('2d');
+    // Parâmetros da hélice (escada em espiral)
+    const { radius, pitch, angleStep } = SPIRAL;
 
-    // Fundo marfim acetinado
-    cleanCtx.fillStyle = '#f0eee6';
-    cleanCtx.fillRect(0, 0, 2048, 1024);
+    const edgeColorFor = (category) => {
+      if (category === 'Loja AURA') return 0x2563eb;
+      if (category === 'Vanessa Chaves') return 0x991b1b;
+      return 0x64748b;
+    };
 
-    // Compensação anamórfica da geometria 3D (512x140) para manter proporção 1:1 absoluta
-    cleanCtx.save();
-    cleanCtx.scale(1, 1.8285);
+    spiralSlidesData.forEach((item, index) => {
+      const slideGroup = new THREE.Group();
 
-    // Faixas de cor analógicas (vermelho rubi e azul cobalto)
-    cleanCtx.fillStyle = '#991b1b';
-    cleanCtx.fillRect(0, 0, 2048, 52);
-    cleanCtx.fillStyle = '#2563eb';
-    cleanCtx.fillRect(0, 52, 2048, 28);
-
-    // Tipografia nítida e cristalina
-    cleanCtx.fillStyle = '#141416';
-    cleanCtx.font = '700 82px "Space Mono", monospace';
-    cleanCtx.fillText('CAMILLA PASCHOAL · MASTER T-120', 84, 195);
-
-    cleanCtx.font = '600 46px "Inter", sans-serif';
-    cleanCtx.fillStyle = '#2c2d35';
-    cleanCtx.fillText('STATUS: DISPONÍVEL PARA PROJETOS & DESAFIOS DIGITAIS', 84, 290);
-
-    cleanCtx.font = '700 42px "Space Mono", monospace';
-    cleanCtx.fillStyle = '#991b1b';
-    cleanCtx.fillText('CONTATO DIRETO: CLIQUE NAS TECLAS ABAIXO', 84, 385);
-
-    cleanCtx.font = '400 36px "Space Mono", monospace';
-    cleanCtx.fillStyle = '#666670';
-    cleanCtx.fillText('RIO DE JANEIRO, BR · DESIGNER, DEVELOPER, AI BUILDER', 84, 475);
-    cleanCtx.restore();
-
-    this.vhsLabelCanvas = document.createElement('canvas');
-    this.vhsLabelCanvas.width = 2048;
-    this.vhsLabelCanvas.height = 1024;
-    this.vhsLabelCtx = this.vhsLabelCanvas.getContext('2d');
-    this.vhsLabelCtx.drawImage(this.cleanLabelCanvas, 0, 0);
-
-    this.vhsLabelTexture = new THREE.CanvasTexture(this.vhsLabelCanvas);
-    this.vhsLabelTexture.colorSpace = THREE.SRGBColorSpace;
-    this.vhsLabelTexture.generateMipmaps = true;
-    this.vhsLabelTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    this.vhsLabelTexture.magFilter = THREE.LinearFilter;
-    if (this.renderer.capabilities.getMaxAnisotropy) {
-      this.vhsLabelTexture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    }
-
-    const labelMat = new THREE.MeshBasicMaterial({
-      map: this.vhsLabelTexture,
-      depthWrite: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1
-    });
-    const labelMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(512, 126),
-      labelMat
-    );
-    // Z = 35.2 fica em plano frontal sem Z-fighting com o gabinete Z = 34
-    // Y = 68 posiciona o rótulo com folga ampla acima das bobinas de fita (que ficam em Y = -50)
-    labelMesh.position.set(0, 68, 35.2);
-
-    // 2. Bobinas giratórias da fita com detalhes mecânicos reais (aletas, dentes, engrenagem e fita)
-    const spoolCanvas = document.createElement('canvas');
-    spoolCanvas.width = 512; spoolCanvas.height = 512;
-    const sctx = spoolCanvas.getContext('2d');
-    const cx = 256, cy = 256;
-
-    // Disco externo marfim da bobina
-    sctx.beginPath();
-    sctx.arc(cx, cy, 246, 0, Math.PI * 2);
-    sctx.fillStyle = '#eae6db';
-    sctx.fill();
-    sctx.lineWidth = 5;
-    sctx.strokeStyle = '#c4c0b4';
-    sctx.stroke();
-
-    // Anel de guia externo
-    sctx.beginPath();
-    sctx.arc(cx, cy, 226, 0, Math.PI * 2);
-    sctx.lineWidth = 2.5;
-    sctx.strokeStyle = 'rgba(180, 175, 160, 0.6)';
-    sctx.stroke();
-
-    // Fita magnética escura enrolada no miolo
-    sctx.beginPath();
-    sctx.arc(cx, cy, 185, 0, Math.PI * 2);
-    sctx.fillStyle = '#181b22';
-    sctx.fill();
-
-    // Flange do cubo central (marfim)
-    sctx.beginPath();
-    sctx.arc(cx, cy, 126, 0, Math.PI * 2);
-    sctx.fillStyle = '#f5f3ec';
-    sctx.fill();
-    sctx.lineWidth = 3.5;
-    sctx.strokeStyle = '#b8b4a6';
-    sctx.stroke();
-
-    // 3 Aletas / Dentes de engate mecânico do VHS (a cada 120 graus)
-    for (let i = 0; i < 3; i++) {
-      const angle = (i * Math.PI * 2) / 3;
-      sctx.save();
-      sctx.translate(cx, cy);
-      sctx.rotate(angle);
-      
-      // Cavidade do dente
-      sctx.fillStyle = '#0c0e14';
-      sctx.beginPath();
-      sctx.roundRect(-16, 42, 32, 70, 4);
-      sctx.fill();
-
-      // Dente de trava em relevo
-      sctx.fillStyle = '#ffffff';
-      sctx.fillRect(-10, 48, 20, 24);
-      sctx.restore();
-    }
-
-    // 3 Furos de alívio circulares entre as aletas
-    for (let i = 0; i < 3; i++) {
-      const angle = (i * Math.PI * 2) / 3 + Math.PI / 3;
-      const fx = cx + Math.cos(angle) * 78;
-      const fy = cy + Math.sin(angle) * 78;
-      sctx.beginPath();
-      sctx.arc(fx, fy, 16, 0, Math.PI * 2);
-      sctx.fillStyle = '#10121a';
-      sctx.fill();
-      sctx.lineWidth = 2.5;
-      sctx.strokeStyle = '#d4d0c2';
-      sctx.stroke();
-    }
-
-    // Engrenagem central estriada (spindle teeth)
-    sctx.beginPath();
-    sctx.arc(cx, cy, 48, 0, Math.PI * 2);
-    sctx.fillStyle = '#222632';
-    sctx.fill();
-
-    for (let i = 0; i < 12; i++) {
-      const angle = (i * Math.PI * 2) / 12;
-      const gx = cx + Math.cos(angle) * 42;
-      const gy = cy + Math.sin(angle) * 42;
-      sctx.beginPath();
-      sctx.arc(gx, gy, 6.5, 0, Math.PI * 2);
-      sctx.fillStyle = '#f0eee8';
-      sctx.fill();
-    }
-
-    // Eixo central vazado
-    sctx.beginPath();
-    sctx.arc(cx, cy, 24, 0, Math.PI * 2);
-    sctx.fillStyle = '#06070a';
-    sctx.fill();
-
-    const spoolTexture = new THREE.CanvasTexture(spoolCanvas);
-    spoolTexture.colorSpace = THREE.SRGBColorSpace;
-    spoolTexture.generateMipmaps = true;
-    spoolTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    spoolTexture.anisotropy = this.maxAniso;
-
-    const spoolMat = new THREE.MeshBasicMaterial({
-      map: spoolTexture,
-      transparent: true,
-      depthWrite: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2
-    });
-    // Diâmetro compacto calibrado (raio 22) com respiro generoso em relação ao rótulo e botões
-    const spoolGeo = new THREE.CircleGeometry(22, 36);
-
-    this.spool1 = new THREE.Mesh(spoolGeo, spoolMat);
-    this.spool1.position.set(-130, -50, 35.6);
-
-    this.spool2 = new THREE.Mesh(spoolGeo, spoolMat);
-    this.spool2.position.set(130, -50, 35.6);
-
-    // 3. 4 Teclas Mecânicas de Contacto em Acrílico Fumê Escuro (#0e1118)
-    const contactsList = [
-      { name: 'WHATSAPP', url: 'https://wa.me/5521982566564', x: -180 },
-      { name: 'LINKEDIN', url: 'https://www.linkedin.com/in/camillapaschoal/', x: -60 },
-      { name: 'GITHUB', url: 'https://github.com/ccpaschoal', x: 60 },
-      { name: 'EMAIL', url: 'mailto:camillacpaschoal@gmail.com', x: 180 }
-    ];
-
-    // Dimensões compactas (largura 102, altura 24, profundidade 14) rebaixadas para Y = -122
-    const btnGeo = new THREE.BoxGeometry(102, 24, 14);
-
-    contactsList.forEach(item => {
-      const bCanvas = document.createElement('canvas');
-      bCanvas.width = 512; bCanvas.height = 160;
-      const bctx = bCanvas.getContext('2d');
-
-      // Base em acrílico fumê escuro (#0e1118) com chanfro usinado
-      bctx.fillStyle = '#0e1118';
-      bctx.fillRect(0, 0, 512, 160);
-      bctx.strokeStyle = 'rgba(200, 200, 207, 0.30)';
-      bctx.lineWidth = 5;
-      bctx.strokeRect(3, 3, 506, 154);
-
-      bctx.fillStyle = '#e2e2e8';
-      bctx.font = '700 50px "Space Mono", monospace';
-      bctx.textAlign = 'center';
-      bctx.textBaseline = 'middle';
-      bctx.fillText(item.name, 256, 80);
-
-      const bTex = new THREE.CanvasTexture(bCanvas);
-      bTex.colorSpace = THREE.SRGBColorSpace;
-      bTex.generateMipmaps = true;
-      bTex.minFilter = THREE.LinearMipmapLinearFilter;
-      bTex.magFilter = THREE.LinearFilter;
-      if (this.renderer.capabilities.getMaxAnisotropy) {
-        bTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-      }
-
-      const btnMat = new THREE.MeshStandardMaterial({
-        map: bTex,
-        color: 0xffffff,
-        roughness: 0.25,
-        metalness: 0.35,
-        emissive: new THREE.Color(0x2563eb),
-        emissiveIntensity: 0.0
+      // Chassi escuro de cada lâmina
+      const frameMat = new THREE.MeshStandardMaterial({
+        color: 0x0b0f1a,
+        roughness: 0.6,
+        metalness: 0.3,
+        transparent: true,
+        opacity: 0
       });
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.z = -3.5;
+      slideGroup.add(frameMesh);
 
-      const btnMesh = new THREE.Mesh(btnGeo, btnMat);
-      btnMesh.position.set(item.x, -122, 36);
+      // Borda sutil cobalto / vinho / prata por coleção
+      const edgeMat = new THREE.LineBasicMaterial({
+        color: edgeColorFor(item.category),
+        transparent: true,
+        opacity: 0
+      });
+      const edgeLines = new THREE.LineSegments(borderGeo, edgeMat);
+      edgeLines.position.z = -3.5;
+      slideGroup.add(edgeLines);
 
-      btnMesh.userData = {
-        isClickable: true,
-        url: item.url,
-        type: 'contact',
-        name: item.name,
-        baseZ: 36,
-        onHoverStart: () => {
-          gsap.to(btnMesh.position, { z: 38, duration: 0.18, ease: 'power2.out' });
-          gsap.to(btnMat, { emissiveIntensity: 0.85, duration: 0.18 });
-          this.triggerGlitch(180);
-        },
-        onHoverEnd: () => {
-          gsap.to(btnMesh.position, { z: 36, duration: 0.18, ease: 'power2.out' });
-          gsap.to(btnMat, { emissiveIntensity: 0.0, duration: 0.18 });
+      // Lâmina: placeholder escuro até a textura .webp chegar (ver loadSpiralTextures)
+      const slideMat = new THREE.MeshBasicMaterial({
+        color: 0x111522,
+        transparent: true,
+        opacity: 0,
+        toneMapped: false
+      });
+      const slideMesh = new THREE.Mesh(slideGeo, slideMat);
+      slideMesh.position.z = 0.5;
+      slideGroup.add(slideMesh);
+
+      this.spiralMaterials.push(frameMat, edgeMat, slideMat);
+
+      // Degrau i: ângulo θ = i·passo, descendo `pitch` a cada lâmina
+      const theta = index * angleStep;
+      slideGroup.position.set(Math.sin(theta) * radius, -index * pitch, Math.cos(theta) * radius);
+      // Normal da lâmina aponta para fora do eixo (fica de frente quando chega em θ=0)
+      slideGroup.rotation.set(-0.07, theta, 0.035);
+
+      slideGroup.userData = { index, item, slideMat, isSpiralSlide: true };
+
+      this.spiralCarouselGroup.add(slideGroup);
+      this.spiralSlides.push(slideGroup);
+    });
+
+    this.spiralCarouselGroup.position.set(0, -330, SPIRAL.depth - 270);
+  }
+
+  // Baixa as 20 lâminas só depois da entrada no site, sem pesar a tela preta inicial.
+  // Cada textura sobe para a GPU assim que chega, evitando um engasgo ao entrar no Ato 02.
+  loadSpiralTextures() {
+    if (this.spiralTexturesRequested || !this.spiralSlides) return;
+    this.spiralTexturesRequested = true;
+    const loader = new THREE.TextureLoader();
+    this.spiralSlides.forEach((slideGroup) => {
+      const { slideMat, item } = slideGroup.userData;
+      loader.load(item.src, (tex) => {
+        if (this._disposed) {
+          tex.dispose();
+          return;
         }
-      };
-
-      this.clickableObjects.push(btnMesh);
-      this.vhsCassette.add(btnMesh);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = this.maxAniso;
+        slideMat.map = tex;
+        slideMat.color.set(0xffffff);
+        slideMat.needsUpdate = true;
+        this.renderer.initTexture?.(tex);
+      });
     });
-
-    this.vhsCassette.add(vhsBody, labelMesh, this.spool1, this.spool2);
-
-    // 4. Reprodutor VHS com Baia Recuada e Trilhos (estacionado fora de tela à esquerda)
-    this.vhsPlayer = new THREE.Group();
-    this.vhsPlayer.position.set(-1500, -30, 0);
-    const caseMat = new THREE.MeshStandardMaterial({ color: 0x0e1118, metalness: 0.38, roughness: 0.66 });
-    const faceMat = new THREE.MeshStandardMaterial({ color: 0x252b35, metalness: 0.5, roughness: 0.37 });
-    const railMat = new THREE.MeshStandardMaterial({ color: 0x434b58, metalness: 0.72, roughness: 0.26 });
-    const deckBody = new THREE.Mesh(new THREE.BoxGeometry(760, 440, 90), caseMat);
-    deckBody.position.z = -80;
-    const face = new THREE.Mesh(new THREE.BoxGeometry(714, 396, 8), faceMat);
-    face.position.z = -30;
-    const bay = new THREE.Mesh(new THREE.BoxGeometry(606, 338, 4),
-      new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.92 }));
-    bay.position.z = -23;
-    this.vhsPlayer.add(deckBody, face, bay);
-    for (const y of [-171, 171]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(620, 13, 18), railMat);
-      rail.position.set(0, y, 38);
-      this.vhsPlayer.add(rail);
-    }
-    for (const x of [-307, 307]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(13, 342, 18), railMat);
-      rail.position.set(x, 0, 38);
-      this.vhsPlayer.add(rail);
-    }
-
-    // 5. Display CRT Superior do Deck (fósforo ciano/verde, scanlines e LED com luz física sem corte)
-    const deckCanvas = document.createElement('canvas');
-    deckCanvas.width = 1024; deckCanvas.height = 140;
-    const dctx = deckCanvas.getContext('2d');
-    dctx.fillStyle = '#050b14';
-    dctx.fillRect(0, 0, 1024, 140);
-
-    // Linhas de scanlines horizontais estáticas discretas
-    dctx.fillStyle = 'rgba(0, 0, 0, 0.32)';
-    for (let y = 0; y < 140; y += 3) {
-      dctx.fillRect(0, y, 1024, 1);
-    }
-
-    dctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
-    dctx.lineWidth = 3;
-    dctx.strokeRect(3, 3, 1018, 134);
-
-    dctx.fillStyle = '#38bdf8';
-    dctx.font = '700 32px "Space Mono", monospace';
-    dctx.fillText('PASCHOAL T-120 · MASTER DECK', 28, 48);
-
-    dctx.fillStyle = '#4ade80';
-    dctx.font = '700 28px "Space Mono", monospace';
-    dctx.fillText('▶ PLAY  SP  STEREO  CH-1/2', 28, 92);
-
-    dctx.fillStyle = '#38bdf8';
-    dctx.font = '700 36px "Space Mono", monospace';
-    dctx.fillText('00:26:14', 775, 70);
-
-    const deckTex = new THREE.CanvasTexture(deckCanvas);
-    deckTex.colorSpace = THREE.SRGBColorSpace;
-    deckTex.generateMipmaps = true;
-    deckTex.minFilter = THREE.LinearMipmapLinearFilter;
-    deckTex.magFilter = THREE.LinearFilter;
-    if (this.renderer.capabilities.getMaxAnisotropy) {
-      deckTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    }
-    const deckTitle = new THREE.Mesh(new THREE.PlaneGeometry(480, 65),
-      new THREE.MeshBasicMaterial({ map: deckTex, transparent: true }));
-    // Posicionado no topo frontal do deck (Z=46 evita qualquer corte pelo trilho em Z=38; Y=230 eleva o display com folga)
-    deckTitle.position.set(-65, 230, 46);
-    this.vhsPlayer.add(deckTitle);
-
-    this.deckStatusLight = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: new THREE.Color(0x38bdf8),
-      emissiveIntensity: 1.8,
-      roughness: 0.1,
-      metalness: 0.2
-    });
-    // Bolinha LED maior (raio ampliado para 13 com malha de alta resolução)
-    const led = new THREE.Mesh(new THREE.SphereGeometry(13, 24, 16), this.deckStatusLight);
-    led.position.set(315, 230, 46);
-
-    const ledLight = new THREE.PointLight(0x38bdf8, 2.0, 140);
-    ledLight.position.set(315, 230, 56);
-    this.vhsPlayer.add(led, ledLight);
-
-    this.chapter03Group.add(this.vhsPlayer, this.vhsCassette);
   }
 
   /* ==========================================================================
-     MASTER TIMELINE GSAP NARRATIVA (PROGRESSO VIRTUAL 0.0 A 1.0)
+     ATO 03: "ADAPTÁVEL. DO SEU JEITO." & MOCKUPS DE BROWSER FLUTUANDO
+     ========================================================================== */
+  buildChapter03() {
+    this.contactGroup = new THREE.Group();
+    this.chapter03Group.add(this.contactGroup);
+
+    this.contactMaterials = [];
+    this.browserMockups = [];
+    this.contactTextures = [];
+
+    // 1. Tipografia cenográfica
+    const titleCanvas = document.createElement('canvas');
+    titleCanvas.width = 2048;
+    titleCanvas.height = 512;
+    const titleTex = new THREE.CanvasTexture(titleCanvas);
+    titleTex.colorSpace = THREE.SRGBColorSpace;
+    titleTex.anisotropy = this.maxAniso;
+
+    const drawTitle = () => {
+      const tCtx = titleCanvas.getContext('2d');
+      tCtx.clearRect(0, 0, titleCanvas.width, titleCanvas.height);
+      tCtx.textAlign = 'center';
+      tCtx.textBaseline = 'middle';
+
+      tCtx.font = '700 34px "Space Mono", monospace';
+      tCtx.fillStyle = '#60a5fa';
+      if ('letterSpacing' in tCtx) tCtx.letterSpacing = '6px';
+      tCtx.fillText('SOCIAL MEDIA DESIGNER  ·  WEB DEVELOPER  ·  AI PRODUCT BUILDER', 1024, 140);
+
+      if ('letterSpacing' in tCtx) tCtx.letterSpacing = '0px';
+      tCtx.shadowColor = 'rgba(37, 99, 235, 0.45)';
+      tCtx.shadowBlur = 32;
+      tCtx.font = '800 132px "Inter", sans-serif';
+      tCtx.fillStyle = '#f8fafc';
+      tCtx.fillText('ADAPTÁVEL. DO SEU JEITO.', 1024, 300);
+      tCtx.shadowBlur = 0;
+      titleTex.needsUpdate = true;
+    };
+
+    const titleMat = new THREE.MeshBasicMaterial({
+      map: titleTex,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      toneMapped: false
+    });
+    const titleMesh = new THREE.Mesh(new THREE.PlaneGeometry(1080, 270), titleMat);
+    titleMesh.position.set(0, 300, -60);
+    this.contactGroup.add(titleMesh);
+    this.contactMaterials.push(titleMat);
+    this.contactTextures.push(titleTex);
+
+    // 2. Quatro mockups de browser com links de contato
+    const contacts = [
+      {
+        id: 'whatsapp', label: 'WHATSAPP', badge: 'ONLINE AGORA',
+        domain: 'wa.me/5521982566564',
+        headline: 'Vamos conversar?', sub: 'Orçamentos, freelas & projetos rápidos',
+        cta: 'INICIAR CONVERSA ↗', accent: '#22c55e',
+        url: 'https://wa.me/5521982566564',
+        pos: [-472, -52, 52], rot: [0.04, 0.26, 0.02]
+      },
+      {
+        id: 'linkedin', label: 'LINKEDIN', badge: 'NETWORK',
+        domain: 'linkedin.com/in/camillapaschoal',
+        headline: 'Camilla Paschoal', sub: 'Trajetória, conexões & experiências',
+        cta: 'CONECTAR NO LINKEDIN ↗', accent: '#3b82f6',
+        url: 'https://www.linkedin.com/in/camillapaschoal/',
+        pos: [-158, -82, 112], rot: [0.03, 0.09, 0.01]
+      },
+      {
+        id: 'github', label: 'GITHUB', badge: 'REPOSITÓRIOS',
+        domain: 'github.com/ccpaschoal',
+        headline: '@ccpaschoal', sub: 'Código, WebGL, React & experimentos IA',
+        cta: 'EXPLORAR CÓDIGO ↗', accent: '#a855f7',
+        url: 'https://github.com/ccpaschoal',
+        pos: [158, -82, 112], rot: [0.03, -0.09, -0.01]
+      },
+      {
+        id: 'email', label: 'E-MAIL DIRETO', badge: 'CONTATO FORMAL',
+        domain: 'camillacpaschoal@gmail.com', scheme: 'mailto:',
+        headline: 'Proposta & Briefing', sub: 'camillacpaschoal@gmail.com',
+        cta: 'ENVIAR E-MAIL ↗', accent: '#e11d48',
+        url: 'mailto:camillacpaschoal@gmail.com',
+        pos: [472, -52, 52], rot: [0.04, -0.26, -0.02]
+      }
+    ];
+
+    const BROWSER_W = 288;
+    const BROWSER_H = 198;
+    const screenGeo = new THREE.PlaneGeometry(BROWSER_W, BROWSER_H);
+    const chassisGeo = new THREE.BoxGeometry(BROWSER_W + 12, BROWSER_H + 12, 7.5);
+    const chassisEdgesGeo = new THREE.EdgesGeometry(chassisGeo);
+    const browserCanvases = [];
+
+    const drawBrowser = (ctx, item) => {
+      const W = 1024;
+      const H = 704;
+      ctx.clearRect(0, 0, W, H);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+
+      // Fundo dark glass
+      const grad = ctx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, '#0b1120');
+      grad.addColorStop(1, '#16070c');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Barra superior do browser
+      ctx.fillStyle = '#070a12';
+      ctx.fillRect(0, 0, W, 88);
+
+      // Bolinhas da janela
+      ['#ef4444', '#f59e0b', '#10b981'].forEach((c, i) => {
+        ctx.beginPath();
+        ctx.arc(46 + i * 28, 44, 9, 0, Math.PI * 2);
+        ctx.fillStyle = c;
+        ctx.fill();
+      });
+
+      // Barra de URL
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.beginPath();
+      ctx.roundRect(150, 20, 830, 48, 12);
+      ctx.fill();
+      ctx.font = '400 22px "Space Mono", monospace';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText(`${item.scheme || 'https://'}${item.domain}`, 178, 51);
+
+      // Badge de status
+      ctx.fillStyle = item.accent;
+      ctx.beginPath();
+      ctx.roundRect(64, 138, 280, 44, 22);
+      ctx.fill();
+      ctx.font = '700 20px "Inter", sans-serif';
+      ctx.fillStyle = '#080c16';
+      ctx.fillText(item.badge, 88, 167);
+
+      // Título e subtítulo
+      ctx.font = '800 64px "Inter", sans-serif';
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(item.headline, 64, 300);
+      ctx.font = '400 32px "Inter", sans-serif';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(item.sub, 64, 366);
+
+      // Botão CTA
+      ctx.beginPath();
+      ctx.roundRect(64, 520, 500, 84, 16);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.fill();
+      ctx.strokeStyle = item.accent;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.font = '700 28px "Inter", sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(item.cta, 100, 572);
+    };
+
+    contacts.forEach((item) => {
+      const browserGroup = new THREE.Group();
+
+      const bCanvas = document.createElement('canvas');
+      bCanvas.width = 1024;
+      bCanvas.height = 704;
+      const ctx = bCanvas.getContext('2d');
+
+      const screenTex = new THREE.CanvasTexture(bCanvas);
+      screenTex.colorSpace = THREE.SRGBColorSpace;
+      screenTex.generateMipmaps = true;
+      screenTex.minFilter = THREE.LinearMipmapLinearFilter;
+      screenTex.anisotropy = this.maxAniso;
+      browserCanvases.push({ ctx, item, tex: screenTex });
+      this.contactTextures.push(screenTex);
+
+      const chassisMat = new THREE.MeshStandardMaterial({
+        color: 0x090d16,
+        roughness: 0.25,
+        metalness: 0.75,
+        transparent: true,
+        opacity: 0
+      });
+      const chassisMesh = new THREE.Mesh(chassisGeo, chassisMat);
+      chassisMesh.position.z = -4.5;
+      browserGroup.add(chassisMesh);
+
+      const borderMat = new THREE.LineBasicMaterial({
+        color: new THREE.Color(item.accent),
+        transparent: true,
+        opacity: 0
+      });
+      const borderLines = new THREE.LineSegments(chassisEdgesGeo, borderMat);
+      borderLines.position.z = -4.5;
+      browserGroup.add(borderLines);
+
+      const screenMat = new THREE.MeshBasicMaterial({
+        map: screenTex,
+        transparent: true,
+        opacity: 0,
+        toneMapped: false
+      });
+      const screenMesh = new THREE.Mesh(screenGeo, screenMat);
+      screenMesh.position.z = 0.5;
+      browserGroup.add(screenMesh);
+
+      this.contactMaterials.push(chassisMat, borderMat, screenMat);
+
+      // O slot recebe a posição do layout (arco no desktop, grade 2×2 em tela em pé);
+      // a timeline anima só o browser dentro dele (y: -210 -> 0)
+      const slot = new THREE.Group();
+      slot.userData.layout = { arc: { pos: item.pos, rot: item.rot } };
+      slot.add(browserGroup);
+
+      browserGroup.userData = {
+        id: item.id,
+        url: item.url,
+        title: item.label,
+        isClickable: true,
+        isContactBrowser: true,
+        baseY: 0,
+        baseZ: 0,
+        onHoverStart: () => {
+          gsap.to(browserGroup.scale, { x: 1.06, y: 1.06, z: 1.06, duration: 0.25, ease: 'power2.out' });
+          gsap.to(borderMat.color, { r: 1, g: 1, b: 1, duration: 0.25 });
+        },
+        onHoverEnd: () => {
+          const c = new THREE.Color(item.accent);
+          gsap.to(browserGroup.scale, { x: 1, y: 1, z: 1, duration: 0.25, ease: 'power2.out' });
+          gsap.to(borderMat.color, { r: c.r, g: c.g, b: c.b, duration: 0.25 });
+        }
+      };
+
+      this.clickableObjects.push(browserGroup);
+      this.contactGroup.add(slot);
+      this.browserMockups.push(browserGroup);
+    });
+    this.contactTitleMesh = titleMesh;
+
+    const redrawAll = () => {
+      drawTitle();
+      browserCanvases.forEach(({ ctx, item, tex }) => {
+        drawBrowser(ctx, item);
+        tex.needsUpdate = true;
+      });
+    };
+    redrawAll();
+    // Redesenha quando as webfonts terminarem de carregar (evita fonte fallback no canvas)
+    canvasFontsReady().then(() => {
+      if (!this._disposed) redrawAll();
+    });
+
+    this.contactGroup.position.set(0, -390, -225);
+  }
+
+  /* ==========================================================================
+     MASTER TIMELINE GSAP NARRATIVA (0s -> 100s / PROGRESSO 0.0 A 1.0)
+     00: Polaroids | 01: Celulares | 02: Espiral | 03: Browsers de contato
+     Platôs de snap: 0.00 · 0.35 · 0.60 · 0.90
      ========================================================================== */
   initMasterTimeline() {
+    if (this.masterTimeline) this.masterTimeline.kill();
+
     this.masterTimeline = gsap.timeline({
       paused: true,
       onUpdate: () => {
         if (document.body.classList.contains('is-teaser')) return;
-        const time = this.masterTimeline.time();
+        const t = this.masterTimeline.time();
         const overlap = !this.reducedMotion.matches;
-        this.chapter00Group.visible = time < (overlap ? 27.5 : 25);
-        this.chapter01Group.visible = time >= (overlap ? 22 : 25) && time < 49.5;
-        this.chapter02Group.visible = time >= 48 && time < 75;
-        this.chapter03Group.visible = time >= 75;
+        this.chapter00Group.visible = t < (overlap ? 27.5 : 25);
+        this.chapter01Group.visible = t >= (overlap ? 21 : 25) && t < 48.5;
+        this.chapter02Group.visible = t >= (overlap ? 43.5 : 50) && t < 77;
+        this.chapter03Group.visible = t >= (overlap ? 71 : 75);
 
-        // Ao sair da tela preta e avançar na narrativa, garante poeira dissipada
-        if (this.dustMaterial && this.dustMaterial.uniforms.uOpacity.value > 0 && !this.teaserTimeline?.isActive()) {
-          this.dustMaterial.uniforms.uWind.value = 1.0;
-          this.dustMaterial.uniforms.uOpacity.value = 0.0;
+        // Depois de subir nas Polaroids a poeira fica desligada pelo resto do site
+        if (this.dustParticles && !this.teaserTimeline?.isActive()) {
+          this.dustParticles.visible = false;
         }
+        if (!this.spiralTexturesRequested && t > 20) this.loadSpiralTextures();
       }
     });
 
-    // --- ATO 00: POLAROIDS (0.00 a 0.25 -> 0s a 25s) ---
-    // Resposta imediata ao scroll: a partir de 3s as cartas iniciam a elevação suave e recuo em profundidade
+    // Âncora de 100s exatos para mapear progress 0.00 -> 1.00
+    this.masterTimeline.set({}, {}, 100);
+
+    /* --- ATO 00: POLAROIDS (0s -> 27s) --- */
     this.masterTimeline.to(this.chapter00Group.position, { z: -420, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
     this.masterTimeline.to(this.leftPolaroid.position, { y: 1150, x: -390, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
     this.masterTimeline.to(this.rightPolaroid.position, { y: 1150, x: 390, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
     this.masterTimeline.to(this.centerPolaroid.position, { y: 1200, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
     this.masterTimeline.to(this.leftPolaroid.rotation, { z: -0.16, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
     this.masterTimeline.to(this.rightPolaroid.rotation, { z: 0.16, duration: 21, ease: 'power1.in', immediateRender: false }, 3);
-    // Opacidade desvanece suavemente de 20.5s a 26.5s
     this.masterTimeline.to(this.polaroidMaterials, { opacity: 0, duration: 6.0, ease: 'power1.inOut', immediateRender: false }, 20.5);
 
-    // --- ATO 01: CARROSSÉIS FLUTUANTES (0.25 a 0.48 -> 25s a 48s) ---
-    if (!this.reducedMotion.matches) {
-      // Aproximação em Z e escala contínuos do conjunto centralizado (21s a 29.5s)
-      this.masterTimeline.fromTo(this.kodakFilmStrip.position,
-        { z: -360, x: -440, y: -12 },
-        { z: 0, x: -440, y: 0, duration: 8.5, ease: 'power2.out', immediateRender: false }, 21.0);
-      this.masterTimeline.fromTo(this.kodakFilmStrip.scale,
-        { x: 0.76, y: 0.76, z: 0.76 },
-        { x: 1, y: 1, z: 1, duration: 8.5, ease: 'power2.out', immediateRender: false }, 21.0);
-
-      // 6 cantos e trajetórias calibradas fora da tela para as lâminas da Apresentação
-      const slideCorners = [
-        // 0: Apresentação 1 (Fora da tela alto-esquerda -> centro)
-        { inPos: [-1100, 720, -220], inRot: [0.12, -0.20, 0.10], outPos: [-750, -520, -180], outRot: [-0.12, 0.15, -0.08] },
-        // 1: Apresentação 2 (Fora da tela baixo-esquerda -> centro)
-        { inPos: [-1000, -700, -200], inRot: [-0.10, -0.18, -0.08], outPos: [-680, 520, -160], outRot: [0.12, -0.12, 0.08] },
-        // 2: Apresentação 3 (Fora da tela alto-centro -> centro)
-        { inPos: [-200, 760, -250], inRot: [0.16, 0.04, -0.08], outPos: [650, 540, -180], outRot: [0.10, 0.14, 0.08] },
-        // 3: Apresentação 4 (Fora da tela baixo-centro -> centro)
-        { inPos: [200, -760, -230], inRot: [-0.16, -0.04, 0.08], outPos: [720, -520, -160], outRot: [-0.12, 0.12, -0.08] },
-        // 4: Apresentação 5 (Fora da tela alto-direita -> centro)
-        { inPos: [1000, 700, -200], inRot: [0.10, 0.20, -0.08], outPos: [220, 560, -180], outRot: [0.14, -0.08, 0.06] },
-        // 5: Apresentação 6 (Fora da tela baixo-direita -> centro)
-        { inPos: [1100, -720, -220], inRot: [-0.12, 0.18, 0.10], outPos: [-220, -560, -180], outRot: [-0.14, 0.08, -0.06] }
-      ];
-
-      // 1. ENTRADA DEVAGAR, NOBRE & MONTAGEM EM ORDEM NO MEIO DA TELA (21.0s a 31.0s)
-      if (this.filmSlides && this.filmSlides.length) {
-        const dur = 8.0; // Voo calmo, lento e cadenciado de 8.0s (sem saltos)
-        this.filmSlides.forEach((slide, i) => {
-          const c = slideCorners[i] || slideCorners[0];
-          const startT = 21.0 + i * 0.40;
-
-          const startX = slide.userData.baseX + c.inPos[0];
-          const startY = c.inPos[1];
-          const startZ = slide.userData.baseZ + c.inPos[2];
-          const startRotY = slide.userData.baseRotY + c.inRot[1];
-          const startRotX = c.inRot[0];
-          const startRotZ = c.inRot[2];
-
-          // Posiciona todas as lâminas fora de tela às 21.0s com opacidade 0 (sem snap)
-          this.masterTimeline.set(slide.position, { x: startX, y: startY, z: startZ }, 21.0);
-          this.masterTimeline.set(slide.rotation, { x: startRotX, y: startRotY, z: startRotZ }, 21.0);
-          this.masterTimeline.set(slide.material, { opacity: 0.0 }, 21.0);
-
-          // Entrada: voam com calma de fora da tela e unem-se perfeitamente no centro
-          this.masterTimeline.to(slide.position,
-            { x: slide.userData.baseX, y: 0, z: slide.userData.baseZ, duration: dur, ease: 'power2.out', immediateRender: false },
-            startT
-          );
-          this.masterTimeline.to(slide.rotation,
-            { x: 0.0, y: slide.userData.baseRotY, z: 0.0, duration: dur, ease: 'power2.out', immediateRender: false },
-            startT
-          );
-          this.masterTimeline.to(slide.material,
-            { opacity: 1.0, duration: 5.2, ease: 'power1.out', immediateRender: false },
-            startT
-          );
-
-          // 2. SAÍDA SUAVE E GRADUAL FORA DA TELA (38.5s a 48.5s): dispersão lenta e sem aceleração brusca
-          const exitT = 38.5 + i * 0.35;
-          const exitDur = 8.5; // Duração longa e serena de 8.5s (elimina o efeito de "ser atirado")
-          const exitX = slide.userData.baseX + c.outPos[0];
-          const exitY = c.outPos[1];
-          const exitZ = slide.userData.baseZ + c.outPos[2];
-
-          this.masterTimeline.to(slide.position, {
-            x: exitX,
-            y: exitY,
-            z: exitZ,
-            duration: exitDur,
-            ease: 'sine.inOut',
-            immediateRender: false
-          }, exitT);
-          this.masterTimeline.to(slide.rotation, {
-            x: c.outRot[0],
-            y: slide.userData.baseRotY + c.outRot[1],
-            z: c.outRot[2],
-            duration: exitDur,
-            ease: 'sine.inOut',
-            immediateRender: false
-          }, exitT);
-          this.masterTimeline.to(slide.material, {
-            opacity: 0.0,
-            duration: 6.5,
-            ease: 'power1.inOut',
-            immediateRender: false
-          }, exitT);
-        });
-      }
-    }
-    this.masterTimeline.to(this.filmRimLight, { intensity: 4.5, duration: 4, immediateRender: false }, 22);
-
-    // Suave deriva contemplativa para apreciação da imagem montada no centro da tela (29.0s a 38.5s)
-    this.masterTimeline.to(this.kodakFilmStrip.position, {
-      x: -470,
-      duration: 9.5,
-      ease: 'none',
-      immediateRender: false
-    }, 29.0);
-    this.masterTimeline.to(this.filmRimLight, { intensity: 0.0, duration: 3.5, immediateRender: false }, 45.0);
-
-    // --- ATO 02: SMARTPHONE HERO ÚNICO (0.48 a 0.76 -> 48s a 76s) ---
-    this.masterTimeline.to(this.phoneRimLight, { intensity: 1.4, duration: 4, immediateRender: false }, 48);
-
-    // A. Entrada cinematográfica: surge majestosamente do fundo profundo (48s a 55s)
-    this.masterTimeline.fromTo(this.phoneHero.position,
-      { x: 0, y: -60, z: -900 },
-      { x: 0, y: 10, z: 40, duration: 7, ease: 'power2.out', immediateRender: false },
-      48
-    );
-    this.masterTimeline.fromTo(this.phoneHero.scale,
-      { x: 0.08, y: 0.08, z: 0.08 },
-      { x: 1.0, y: 1.0, z: 1.0, duration: 7, ease: 'power2.out', immediateRender: false },
-      48
-    );
-    this.masterTimeline.fromTo(this.phoneHero.rotation,
-      { x: 0.12, y: -0.28, z: 0.02 },
-      { x: 0.03, y: -0.14, z: 0.01, duration: 7, ease: 'power2.out', immediateRender: false },
-      48
-    );
-    this.masterTimeline.fromTo(this.phoneMaterials,
-      { opacity: 0.0 },
-      { opacity: 1.0, duration: 4.5, ease: 'power2.out', immediateRender: false },
-      48
-    );
+    /* --- ATO 01: 4 SMARTPHONES EM CARROSSEL CIRCULAR (21s -> 48s) ---
+       Platô estável de 28s a 42s (snap em 0.35: a rodinha folheia os sites) */
+    this.masterTimeline.fromTo(this.phoneRimLight, { intensity: 0 }, { intensity: 1.4, duration: 4, immediateRender: false }, 22);
+    this.masterTimeline.fromTo(this.carouselRingGroup.position,
+      { x: 0, y: -40, z: -850 },
+      { x: 0, y: 10, z: -40, duration: 6, ease: 'power2.out', immediateRender: false }, 22);
+    this.masterTimeline.fromTo(this.carouselRingGroup.scale,
+      { x: 0.1, y: 0.1, z: 0.1 },
+      { x: 1, y: 1, z: 1, duration: 6, ease: 'power2.out', immediateRender: false }, 22);
+    this.masterTimeline.fromTo(this.carouselRingGroup.rotation,
+      { x: 0.25, y: -0.35, z: 0.05 },
+      { x: 0.08, y: 0, z: 0, duration: 6, ease: 'power2.out', immediateRender: false }, 22);
+    this.masterTimeline.fromTo(this.phoneOpaqueMaterials,
+      { opacity: 0 },
+      { opacity: 1, duration: 4.5, ease: 'power2.out', immediateRender: false }, 22);
     this.masterTimeline.fromTo(this.phoneFrontGlassMat,
-      { opacity: 0.0 },
-      { opacity: 0.08, duration: 4.5, ease: 'power2.out', immediateRender: false },
-      48
-    );
+      { opacity: 0 },
+      { opacity: 0.08, duration: 4.5, ease: 'power2.out', immediateRender: false }, 22);
 
-    // B. Platô de estabilidade / leitura fixa no centro (55s a 71s):
-    // O telemóvel permanece FIRME no centro da tela para inspeção do site e uso das setas de projeto.
+    // Saída: recua para o fundo abrindo espaço para a espiral (42s -> 47s)
+    this.masterTimeline.to(this.carouselRingGroup.position,
+      { x: 0, y: 280, z: -700, duration: 5, ease: 'power2.in', immediateRender: false }, 42);
+    this.masterTimeline.to(this.carouselRingGroup.scale,
+      { x: 0.4, y: 0.4, z: 0.4, duration: 5, ease: 'power2.in', immediateRender: false }, 42);
+    this.masterTimeline.to(this.phoneOpaqueMaterials,
+      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 43);
+    this.masterTimeline.to(this.phoneFrontGlassMat,
+      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 43);
+    this.masterTimeline.to(this.phoneRimLight, { intensity: 0, duration: 3, immediateRender: false }, 44);
 
-    // C. Saída cinematográfica: recuo suave que completa a transição para o VHS (71s a 74.9s)
-    this.masterTimeline.to(this.phoneHero.position, {
-      x: 0,
-      y: -40,
-      z: -700,
-      duration: 3.9,
-      ease: 'power2.in',
-      immediateRender: false
-    }, 71);
-    this.masterTimeline.to(this.phoneHero.scale, {
-      x: 0.15,
-      y: 0.15,
-      z: 0.15,
-      duration: 3.9,
-      ease: 'power2.in',
-      immediateRender: false
-    }, 71);
-    this.masterTimeline.to(this.phoneHero.rotation, {
-      x: 0.12,
-      y: -0.28,
-      z: 0.02,
-      duration: 3.9,
-      ease: 'power2.in',
-      immediateRender: false
-    }, 71);
+    /* --- ATO 02: ESPIRAL 3D DOS CARROSSÉIS (44s -> 76s) ---
+       Descida contínua pela escada (49s -> 71s), subida final sumindo para cima */
+    const totalSlides = spiralSlidesData.length;
+    const totalClimbY = (totalSlides - 1) * SPIRAL.pitch;
+    const totalTwistY = -(totalSlides - 1) * SPIRAL.angleStep;
 
-    // Desvanecimento completo dos materiais até opacidade 0 sincronizado com a chegada do Ato 03
-    this.masterTimeline.to(this.phoneMaterials, {
-      opacity: 0.0,
-      duration: 3.2,
-      ease: 'power2.in',
-      immediateRender: false
-    }, 71.7);
-    this.masterTimeline.to(this.phoneFrontGlassMat, {
-      opacity: 0.0,
-      duration: 3.2,
-      ease: 'power2.in',
-      immediateRender: false
-    }, 71.7);
+    this.masterTimeline.fromTo(this.spiralRimLight, { intensity: 0 }, { intensity: 3.2, duration: 4, immediateRender: false }, 44);
+    this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
+      { y: -330, z: SPIRAL.depth - 270 },
+      { y: 0, z: SPIRAL.depth, duration: 5, ease: 'power2.out', immediateRender: false }, 44);
+    this.masterTimeline.fromTo(this.spiralMaterials,
+      { opacity: 0 },
+      { opacity: 1, duration: 4.5, ease: 'power2.out', immediateRender: false }, 44);
 
-    this.masterTimeline.to(this.phoneRimLight, { intensity: 0.0, duration: 3.0, immediateRender: false }, 72);
+    this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
+      { y: 0 },
+      { y: totalClimbY, duration: 22, ease: 'none', immediateRender: false }, 49);
+    this.masterTimeline.fromTo(this.spiralCarouselGroup.rotation,
+      { y: 0 },
+      { y: totalTwistY, duration: 22, ease: 'none', immediateRender: false }, 49);
 
-    // --- ATO 03: VHS DECK (0.75 a 1.00 -> 75s a 100s) ---
-    // O frame/reprodutor vem direto do canto esquerdo fora de tela (X=-1500) deslizando suavemente até o centro
-    this.masterTimeline.fromTo(this.vhsPlayer.position,
-      { x: -1500, y: -30, z: 0 },
-      { x: 0, y: -30, z: 0, duration: 4.8, ease: 'power2.out', immediateRender: false },
-      74.8
-    );
-    this.masterTimeline.fromTo(this.vhsPlayer.rotation,
-      { y: 0.12, z: -0.01 },
-      { y: 0, z: 0, duration: 4.8, ease: 'power2.out', immediateRender: false },
-      74.8
-    );
+    this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
+      { y: totalClimbY, z: SPIRAL.depth },
+      { y: totalClimbY + 900, z: SPIRAL.depth - 240, duration: 5, ease: 'power2.in', immediateRender: false }, 71);
+    this.masterTimeline.fromTo(this.spiralCarouselGroup.scale,
+      { x: 1, y: 1, z: 1 },
+      { x: 0.84, y: 0.84, z: 0.84, duration: 5, ease: 'power2.in', immediateRender: false }, 71);
+    this.masterTimeline.to(this.spiralMaterials,
+      { opacity: 0, duration: 4.5, ease: 'power2.in', immediateRender: false }, 71.5);
+    this.masterTimeline.to(this.spiralRimLight, { intensity: 0, duration: 3, immediateRender: false }, 72);
 
-    // A fita cassete em si mantém sua velocidade solene e cadenciada (13.8s) para encaixar com precisão mecânica
-    this.masterTimeline.fromTo(this.vhsCassette.position,
-      { x: 0, y: -720, z: 240 },
-      { x: 0, y: -30, z: 0, duration: 13.8, ease: 'power1.inOut' },
-      76
-    );
-    this.masterTimeline.fromTo(this.vhsCassette.rotation,
-      { x: -0.22, y: 0, z: 0 },
-      { x: 0, y: 0, z: 0, duration: 13.8, ease: 'power1.inOut' },
-      76
-    );
-    this.masterTimeline.to(this.deckStatusLight, { opacity: 1, duration: 1.5 }, 89.0);
-    // Sustenta o último quadro até 100s para manter os quatro atos com 25s cada.
-    this.masterTimeline.to(this.chapter03Group.position, { y: 0, z: 0, duration: 7 }, 93);
+    /* --- ATO 03: CONTATO (72s -> 100s) — platô final estável a partir de 82s --- */
+    this.masterTimeline.fromTo(this.contactGroup.position,
+      { y: -390, z: -225 },
+      { y: 0, z: 0, duration: 9, ease: 'power3.out', immediateRender: false }, 72);
+    this.browserMockups.forEach((browser, idx) => {
+      const targetY = browser.userData.baseY;
+      this.masterTimeline.fromTo(browser.position,
+        { y: targetY - 210 },
+        { y: targetY, duration: 7, ease: 'back.out(1.4)', immediateRender: false },
+        73.5 + idx * 0.8);
+    });
+    this.masterTimeline.fromTo(this.contactMaterials,
+      { opacity: 0 },
+      { opacity: 1, duration: 7, ease: 'power2.out', immediateRender: false }, 72.5);
   }
 
   /* ==========================================================================
-     TRANSIÇÃO DO TEASER: SUBIDA DO MAÇO E ABERTURA EM LEQUE
+     TRANSIÇÃO DO TEASER: SUBIDA DO MAÇO, ABERTURA EM LEQUE E POEIRA SUBINDO
      ========================================================================== */
   triggerTeaserReveal() {
     if (this.currentChapter >= 0 || this.isTransitioning) return;
@@ -1620,16 +1388,15 @@ export class PortfolioScene {
     // Estado inicial: empilhadas em maço no rodapé profundo sem solavancos
     this.leftPolaroid.position.set(0, -650, 0);
     this.leftPolaroid.rotation.set(0, 0, 0.02);
-
     this.rightPolaroid.position.set(0, -650, 5);
     this.rightPolaroid.rotation.set(0, 0, -0.02);
-
     this.centerPolaroid.position.set(0, -650, 15);
     this.centerPolaroid.rotation.set(0, 0, 0.005);
 
     this.chapter00Group.rotation.set(0, 0, 0);
     this.chapter00Group.visible = true;
 
+    if (this.teaserTimeline) this.teaserTimeline.kill();
     this.teaserTimeline = gsap.timeline({
       onComplete: () => {
         this.currentChapter = 0;
@@ -1638,6 +1405,7 @@ export class PortfolioScene {
           this.masterTimeline.pause();
           this.masterTimeline.progress(0);
         }
+        this.loadSpiralTextures();
       }
     });
 
@@ -1648,31 +1416,29 @@ export class PortfolioScene {
     tl.to(this.centerPolaroid.position, { y: 12, z: 35, duration: 1.15, ease: 'power2.out' }, 0.08);
     tl.to(this.rightPolaroid.position, { y: -12, z: -15, duration: 1.15, ease: 'power2.out' }, 0.16);
 
-    // Desdobramento gradual em leque da esquerda para a direita com respiro amplo de 65px
+    // Desdobramento em leque
     tl.to(this.leftPolaroid.position, { x: -395, duration: 0.90, ease: 'power2.out' }, 0.20);
     tl.to(this.leftPolaroid.rotation, { z: -0.09, y: 0.12, duration: 0.90, ease: 'power2.out' }, 0.20);
-
     tl.to(this.centerPolaroid.rotation, { z: 0.005, y: 0.0, duration: 0.90, ease: 'power2.out' }, 0.28);
-
     tl.to(this.rightPolaroid.position, { x: 395, duration: 0.90, ease: 'power2.out' }, 0.36);
     tl.to(this.rightPolaroid.rotation, { z: 0.09, y: -0.12, duration: 0.90, ease: 'power2.out' }, 0.36);
 
-    // Vento ascendente jogando a poeira para cima e dissipando ao sair da página preta
-    if (this.dustMaterial) {
-      tl.to(this.dustMaterial.uniforms.uWind, {
-        value: 1.0,
-        duration: 1.35,
-        ease: 'power2.in'
-      }, 0);
-      tl.to(this.dustMaterial.uniforms.uOpacity, {
-        value: 0.0,
-        duration: 1.15,
-        ease: 'power2.out'
-      }, 0.15);
+    // Poeira: o vento a sopra para cima sobre as Polaroids, ela some e é desligada
+    if (this.dustParticles && this.dustMaterial) {
+      const uniforms = this.dustMaterial.uniforms;
+      this.dustParticles.visible = true;
+      // uWind 1.2 zera a vida de todas as partículas no shader (vida = 1 - uWind·[0.85..1.30])
+      // Mesma duração do leque (~1.3s) para não segurar a rolagem
+      tl.fromTo(uniforms.uWind, { value: 0.0 }, { value: 1.2, duration: 1.3, ease: 'power2.in' }, 0);
+      tl.to(uniforms.uOpacity, { value: 0.0, duration: 1.05, ease: 'power2.out' }, 0.2);
+      tl.call(() => {
+        if (this.dustParticles) this.dustParticles.visible = false;
+      }, null, 1.3);
     }
 
     if (this.reducedMotion.matches) tl.progress(1);
   }
+
 
   /* ==========================================================================
      RETORNO AO PRÓLOGO / TELA PRETA (TEASER) AO VOLTAR A ROLAGEM
@@ -1714,6 +1480,7 @@ export class PortfolioScene {
     tl.to(this.leftPolaroid.position, { y: -650, z: 0, duration: 0.65, ease: 'power2.in' }, 0.32);
 
     // Retorno suave da poeira: vento cessa e partículas reassentam pacificamente na página preta
+    if (this.dustParticles) this.dustParticles.visible = true;
     if (this.dustMaterial) {
       tl.to(this.dustMaterial.uniforms.uWind, {
         value: 0.0,
@@ -1772,11 +1539,6 @@ export class PortfolioScene {
     return hit;
   }
 
-  triggerGlitch(durationMs = 180) {
-    this.glitchUntil = performance.now() + durationMs;
-    this.isGlitching = true;
-  }
-
   handleClick(clientX, clientY) {
     const hit = this.checkHover(clientX, clientY);
     if (hit && hit.userData?.url) {
@@ -1809,11 +1571,38 @@ export class PortfolioScene {
     if (this.chapter00Group) {
       this.chapter00Group.scale.setScalar(Math.min(1, (visibleWidth * 0.88) / 1010));
     }
-    if (this.chapter01Group) {
-      this.chapter01Group.scale.setScalar(Math.min(1, (visibleWidth * 0.92) / 780));
+    const portrait = aspect < 0.8;
+
+    // Celulares: o aparelho da frente (≈218 de largura) ocupa no máx. ~55% da tela;
+    // em tela estreita os laterais saem pelas bordas, como no carrossel original
+    if (this.chapter01Group) this.chapter01Group.scale.setScalar(Math.min(1, (visibleWidth * 0.55) / 218));
+
+    // Hélice: ≈1160 de largura total; em pé prioriza a lâmina da frente legível
+    if (this.chapter02Group) {
+      this.chapter02Group.scale.setScalar(Math.min(1, (visibleWidth * (portrait ? 0.9 : 0.95)) / (portrait ? 620 : 1160)));
     }
-    if (this.chapter02Group) this.chapter02Group.scale.setScalar(Math.min(1, (visibleWidth * 0.85) / 250));
-    if (this.chapter03Group) this.chapter03Group.scale.setScalar(Math.min(1, (visibleWidth * 0.88) / 800));
+
+    // Contato: arco de 4 browsers (≈1280) no desktop, grade 2×2 (≈620) em tela em pé
+    if (this.chapter03Group) {
+      this.chapter03Group.scale.setScalar(Math.min(1, (visibleWidth * 0.92) / (portrait ? 620 : 1280)));
+      const grid = [[-155, 20], [155, 20], [-155, -200], [155, -200]];
+      this.contactGroup?.children.forEach((slot) => {
+        const arc = slot.userData.layout?.arc;
+        if (!arc) return;
+        const i = this.contactGroup.children.filter(c => c.userData.layout).indexOf(slot);
+        if (portrait) {
+          slot.position.set(grid[i][0], grid[i][1], 40);
+          slot.rotation.set(0.03, grid[i][0] < 0 ? 0.06 : -0.06, 0);
+        } else {
+          slot.position.set(...arc.pos);
+          slot.rotation.set(...arc.rot);
+        }
+      });
+      if (this.contactTitleMesh) {
+        this.contactTitleMesh.scale.setScalar(portrait ? 0.58 : 1);
+        this.contactTitleMesh.position.y = portrait ? 220 : 300;
+      }
+    }
   }
 
   updateMouseCoordinates(clientX, clientY) {
@@ -1891,76 +1680,24 @@ export class PortfolioScene {
       }
     }
 
-    // Flutuação orgânica solta das lâminas fotográficas no espaço (Ato 01)
-    if (this.filmSlides && this.chapter01Group?.visible && !this.reducedMotion.matches) {
-      const time = this.masterTimeline ? this.masterTimeline.time() : 30;
-      // Flutuação sutil de respiração apenas enquanto as lâminas estão montadas e estáveis no centro (25.5s a 42.5s)
-      if (time >= 25.5 && time <= 42.5) {
-        const t = performance.now() * 0.001;
-        const my = this.mouseNormY || 0;
-        for (let i = 0; i < this.filmSlides.length; i++) {
-          const slide = this.filmSlides[i];
-          const floatY = Math.sin(t * 1.3 + i * 0.72) * 2.2;
-          const floatRotZ = Math.sin(t * 1.0 + i * 0.58) * 0.008;
-          slide.position.y = (slide.userData.baseY || 0) + floatY;
-          slide.rotation.z = (slide.userData.baseRotZ || 0) + floatRotZ;
-          slide.rotation.x = -my * 0.025;
-        }
+    // Mouse parallax 3D tátil por ato (01 celulares, 02 espiral, 03 browsers)
+    if (!this.reducedMotion.matches) {
+      const mx = this.mouseNormX || 0;
+      const my = this.mouseNormY || 0;
+      for (let i = 0; i < this.parallaxGroups.length; i++) {
+        const entry = this.parallaxGroups[i];
+        const group = entry[0];
+        if (!group.visible) continue;
+        group.rotation.y = THREE.MathUtils.lerp(group.rotation.y, mx * entry[1], 0.06);
+        group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, -my * entry[2], 0.06);
       }
     }
 
-    // Mouse Parallax 3D Tátil no Smartphone (Ato 02) com reflexos dinâmicos nos aros e vidro
-    if (this.chapter02Group && this.chapter02Group.visible && !this.reducedMotion.matches) {
-      this.chapter02Group.rotation.y = THREE.MathUtils.lerp(
-        this.chapter02Group.rotation.y,
-        (this.mouseNormX || 0) * 0.10,
-        0.06
-      );
-      this.chapter02Group.rotation.x = THREE.MathUtils.lerp(
-        this.chapter02Group.rotation.x,
-        -(this.mouseNormY || 0) * 0.08,
-        0.06
-      );
-    }
-
-    // Rotação suave das bobinas do VHS (em torno do eixo central Z de visualização)
-    if (this.spool1 && this.spool2 && !this.reducedMotion.matches) {
-      this.spool1.rotation.z += 0.02;
-      this.spool2.rotation.z += 0.02;
-    }
-
-    // Controle reativo de tracking glitch analógico do rótulo da fita VHS
-    const now = performance.now();
-    if (this.chapter03Group?.visible && now > this.nextRandomGlitchTime) {
-      this.triggerGlitch(180);
-      this.nextRandomGlitchTime = now + 6000 + Math.random() * 2000;
-    }
-
-    if (this.isGlitching && this.vhsLabelCanvas && this.cleanLabelCanvas) {
-      if (now < this.glitchUntil) {
-        const ctx = this.vhsLabelCtx;
-        const w = this.vhsLabelCanvas.width;
-        const h = this.vhsLabelCanvas.height;
-        ctx.drawImage(this.cleanLabelCanvas, 0, 0);
-
-        // 2 a 3 faixas horizontais com micro-deslocamento (jitter / scanlines)
-        const slices = 2 + Math.floor(Math.random() * 2);
-        for (let i = 0; i < slices; i++) {
-          const sy = Math.floor(Math.random() * (h - 60));
-          const sh = 20 + Math.floor(Math.random() * 40);
-          const dx = (Math.random() - 0.5) * 32;
-          ctx.drawImage(this.cleanLabelCanvas, 0, sy, w, sh, dx, sy, w, sh);
-
-          // Linha de ruído e tracking
-          ctx.fillStyle = i % 2 === 0 ? 'rgba(56, 189, 248, 0.12)' : 'rgba(239, 68, 68, 0.12)';
-          ctx.fillRect(0, sy, w, 3);
-        }
-        this.vhsLabelTexture.needsUpdate = true;
-      } else {
-        // Restauração do rótulo 100% limpo, nítido e legível
-        this.vhsLabelCtx.drawImage(this.cleanLabelCanvas, 0, 0);
-        this.vhsLabelTexture.needsUpdate = true;
-        this.isGlitching = false;
+    // Hélice: só a metade voltada para a câmera fica visível (sem costas cinza das lâminas)
+    if (this.spiralSlides && this.chapter02Group?.visible) {
+      const twist = this.spiralCarouselGroup.rotation.y;
+      for (let i = 0; i < this.spiralSlides.length; i++) {
+        this.spiralSlides[i].visible = Math.cos(i * SPIRAL.angleStep + twist) > -0.3;
       }
     }
 
@@ -1968,12 +1705,14 @@ export class PortfolioScene {
   }
 
   dispose() {
+    this._disposed = true;
     if (this.animId) {
       cancelAnimationFrame(this.animId);
       this.animId = null;
     }
     if (this.masterTimeline) this.masterTimeline.kill();
     if (this.teaserTimeline) this.teaserTimeline.kill();
+    if (this.siteTransition) this.siteTransition.kill();
     this.unbindEvents();
 
     this.scene.traverse((obj) => {
@@ -1996,10 +1735,13 @@ export class PortfolioScene {
 
     if (this.dustGeometry) this.dustGeometry.dispose();
     if (this.dustMaterial) this.dustMaterial.dispose();
-    if (this.vhsLabelTexture) this.vhsLabelTexture.dispose();
+    if (this.contactTextures) this.contactTextures.forEach(t => t.dispose());
+    if (this.siteScreenTextures) this.siteScreenTextures.forEach(t => t.dispose());
+    if (this.envRenderTarget) this.envRenderTarget.dispose();
 
     if (this.renderer) {
       this.renderer.dispose();
+      this.renderer.forceContextLoss();
       if (this.renderer.domElement && this.renderer.domElement.parentNode) {
         this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
       }

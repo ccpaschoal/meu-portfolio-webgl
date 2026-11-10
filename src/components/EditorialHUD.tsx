@@ -8,9 +8,9 @@ export interface EditorialHUDProps {
 
 const CHAPTER_NAMES = [
   '00 // MATRIZ',
-  '01 // PELÍCULA',
-  '02 // DIGITAL',
-  '03 // ARQUIVO'
+  '01 // DIGITAL',
+  '02 // ESPIRAL',
+  '03 // CONTATO'
 ];
 
 /**

@@ -18,7 +18,9 @@ export const IntroTeaser: React.FC<IntroTeaserProps> = ({
       className="intro-teaser"
       role="button"
       aria-label="Entrar no portfólio"
-      tabIndex={0}
+      tabIndex={visible ? 0 : -1}
+      // Escondido: sai da ordem de foco e da árvore de acessibilidade
+      inert={!visible}
       onClick={onEnter}
       onKeyDown={handleKeyDown}
       style={{
@@ -29,17 +31,17 @@ export const IntroTeaser: React.FC<IntroTeaserProps> = ({
     >
       <div className="teaser-arrow">
         <svg
-          width="22"
-          height="22"
+          width="48"
+          height="48"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.5"
+          strokeWidth="2.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <line x1="12" y1="4" x2="12" y2="20" />
-          <polyline points="18 14 12 20 6 14" />
+          <line x1="12" y1="3" x2="12" y2="21" />
+          <polyline points="19 14 12 21 5 14" />
         </svg>
       </div>
       <span className="teaser-hint">CLIQUE OU ROLE</span>

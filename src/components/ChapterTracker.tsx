@@ -3,9 +3,9 @@ import type { ChapterTrackerProps } from '../types/portfolio';
 
 const CHAPTERS = [
   { num: '00', label: 'MATRIZ' },
-  { num: '01', label: 'PELÍCULA' },
-  { num: '02', label: 'DIGITAL' },
-  { num: '03', label: 'ARQUIVO' }
+  { num: '01', label: 'DIGITAL' },
+  { num: '02', label: 'ESPIRAL' },
+  { num: '03', label: 'CONTATO' }
 ];
 
 export const ChapterTracker: React.FC<ChapterTrackerProps> = ({
@@ -29,6 +29,7 @@ export const ChapterTracker: React.FC<ChapterTrackerProps> = ({
               <button
                 type="button"
                 className="tracker-button"
+                aria-label={`${chap.num} ${chap.label}`}
                 aria-current={isActive ? 'step' : undefined}
                 onClick={() => onSelectChapter(idx)}
               >

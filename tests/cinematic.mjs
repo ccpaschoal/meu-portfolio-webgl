@@ -125,63 +125,40 @@ try {
 
   // TESTE 5: Master Timeline (Controle Contínuo dos 4 Atos)
   console.log('-> Testando Master Timeline contínua (0.0 a 1.0)...');
-  
-  // Ativa Ato 01 (Fita 35mm em ~0.35)
-  await page.evaluate(() => {
-    window.portfolioApp.masterTimeline.progress(0.35);
-  });
-  await page.waitForTimeout(100);
-  const act01 = await page.evaluate(() => ({
-    c00Visible: window.portfolioApp.chapter00Group.visible,
-    c01Visible: window.portfolioApp.chapter01Group.visible,
-    stripX: window.portfolioApp.kodakFilmStrip.position.x
-  }));
-  assert.equal(act01.c01Visible, true, 'Ato 01 (Fita 35mm) deve estar visível em progresso 0.35');
-
-  // Ativa Ato 02 (Smartphones em ~0.60)
-  await page.evaluate(() => {
-    window.portfolioApp.masterTimeline.progress(0.60);
-  });
-  await page.waitForTimeout(100);
-  const act02 = await page.evaluate(() => ({
-    c01Visible: window.portfolioApp.chapter01Group.visible,
-    c02Visible: window.portfolioApp.chapter02Group.visible,
-    phoneCount: window.portfolioApp.phonesList.length
-  }));
-  assert.equal(act02.c02Visible, true, 'Ato 02 (Smartphones) deve estar visível em progresso 0.60');
-  assert.equal(act02.phoneCount, 1, 'Ato digital deve ter um celular central');
-
-  // Ativa Ato 03 (VHS em ~0.85)
-  await page.evaluate(() => {
-    window.portfolioApp.masterTimeline.progress(0.85);
-  });
-  await page.waitForTimeout(100);
-  const act03 = await page.evaluate(() => ({
-    c02Visible: window.portfolioApp.chapter02Group.visible,
-    c03Visible: window.portfolioApp.chapter03Group.visible
-  }));
-  assert.equal(act03.c03Visible, true, 'Ato 03 (VHS Deck) deve estar visível em progresso 0.85');
-
-  // TESTE 6: Tracker Lateral Editorial (4 Itens e Navegação)
-  console.log('-> Testando Tracker Lateral (00 MATRIZ, 01 PELÍCULA, 02 DIGITAL, 03 ARQUIVO)...');
-  const trackerInfo = await page.evaluate(() => {
-    const items = document.querySelectorAll('.tracker-list li');
-    const texts = Array.from(items).map(li => li.textContent.trim());
+  const acts = await page.evaluate(() => {
+    const app = window.portfolioApp;
+    const sample = (p) => {
+      app.masterTimeline.progress(p);
+      return [app.chapter00Group, app.chapter01Group, app.chapter02Group, app.chapter03Group]
+        .map(g => g.visible);
+    };
     return {
-      count: items.length,
-      texts
+      duration: app.masterTimeline.duration(),
+      p035: sample(0.35),
+      p060: sample(0.60),
+      p090: sample(0.90),
+      dustVisible: app.dustParticles.visible
     };
   });
-  assert.equal(trackerInfo.count, 4, 'Tracker deve conter exatamente 4 atos');
-  assert.ok(trackerInfo.texts[0].includes('MATRIZ'), 'Ato 0 deve ser MATRIZ');
-  assert.ok(trackerInfo.texts[1].includes('PELÍCULA'), 'Ato 1 deve ser PELÍCULA');
-  assert.ok(trackerInfo.texts[2].includes('DIGITAL'), 'Ato 2 deve ser DIGITAL');
-  assert.ok(trackerInfo.texts[3].includes('ARQUIVO'), 'Ato 3 deve ser ARQUIVO');
+  assert.equal(acts.duration, 100, 'Master timeline deve ter exatamente 100s');
+  assert.deepEqual(acts.p035, [false, true, false, false], 'Ato 01 (celulares) sozinho em 0.35');
+  assert.deepEqual(acts.p060, [false, false, true, false], 'Ato 02 (espiral) sozinho em 0.60');
+  assert.deepEqual(acts.p090, [false, false, false, true], 'Ato 03 (contato) sozinho em 0.90');
+  assert.equal(acts.dustVisible, false, 'Poeira deve ficar desligada depois do teaser');
 
-  // Clique no item 01 do Tracker
+  // TESTE 6: Tracker Lateral Editorial (4 Itens e Navegação)
+  console.log('-> Testando Tracker Lateral (00 MATRIZ, 01 DIGITAL, 02 ESPIRAL, 03 CONTATO)...');
+  const trackerInfo = await page.evaluate(() => {
+    const items = document.querySelectorAll('.tracker-list li');
+    return { count: items.length, texts: Array.from(items).map(li => li.textContent.trim()) };
+  });
+  assert.equal(trackerInfo.count, 4, 'Tracker deve conter exatamente 4 atos');
+  ['MATRIZ', 'DIGITAL', 'ESPIRAL', 'CONTATO'].forEach((label, i) => {
+    assert.ok(trackerInfo.texts[i].includes(label), `Ato ${i} deve ser ${label}`);
+  });
+
   await page.locator('.tracker-list li[data-chapter="1"]').click();
   await page.waitForTimeout(1300);
-
   const trackerNavResult = await page.evaluate(() => {
     const activeItem = document.querySelector('.tracker-list li.active');
     return {
@@ -190,7 +167,8 @@ try {
     };
   });
   assert.equal(trackerNavResult.activeChapter, 1, 'Tracker deve ter ativado o Ato 01');
-  assert.ok(trackerNavResult.timelineProgress > 0.15 && trackerNavResult.timelineProgress < 0.45, 'Timeline deve ter interpolado para o Ato 01');
+  assert.ok(trackerNavResult.timelineProgress > 0.15 && trackerNavResult.timelineProgress < 0.45,
+    'Timeline deve ter interpolado para o Ato 01');
 
   await page.locator('.tracker-list li[data-chapter="2"] button').focus();
   await page.keyboard.press('Enter');
@@ -220,40 +198,44 @@ try {
   });
   assert.ok(Math.abs(mouseUniform.x) < 2000, 'uMouse deve ter sido atualizado com a projeção do cursor');
 
-  // TESTE 8: Verificação de Hardware 3D, Proporção 4:5 e Interatividade Tátil
-  console.log('-> Testando fita, celular central, reprodutor VHS e raycaster...');
+  // TESTE 8: Celulares, espiral, browsers de contato e raycaster
+  console.log('-> Testando celulares, espiral 3D, browsers de contato e raycaster...');
   const engineeringStatus = await page.evaluate(() => {
     const app = window.portfolioApp;
-    const stripWidth = app.totalFilmWidth;
-    const phoneList = app.phonesList;
     const clickables = app.clickableObjects;
-
     return {
-      stripWidthValid: stripWidth > 1400 && stripWidth < 2800,
-      phoneCount: phoneList.length,
-      centerPhoneX: phoneList[0]?.userData?.targetPos?.x,
+      phoneCount: app.phonesList.length,
+      centerPhoneX: app.phonesList[0]?.userData?.targetPos?.x,
+      spiralCount: app.spiralSlides.length,
+      browserCount: app.browserMockups.length,
+      browserUrls: app.browserMockups.map(b => b.userData.url),
       clickableCount: clickables.length,
-      hasUrls: clickables.every(c => !!c.userData?.url)
+      hasUrls: clickables.every(c => !!c.userData?.url && c.userData?.isClickable)
     };
   });
-
-  assert.ok(engineeringStatus.stripWidthValid, 'Largura total da fita 35mm deve ser compacta sem dead scroll');
-  assert.equal(engineeringStatus.phoneCount, 1, 'Deve existir um celular central');
-  assert.equal(engineeringStatus.centerPhoneX, 0, 'Smartphone central em X = 0');
-  assert.ok(engineeringStatus.clickableCount >= 5, 'Celular e quatro botões VHS devem continuar clicáveis');
+  assert.equal(engineeringStatus.phoneCount, 4, 'Carrossel 3D deve conter os 4 mockups dos sites');
+  assert.ok(Math.abs(engineeringStatus.centerPhoneX) < 0.01, 'Mockup frontal central em X = 0');
+  assert.equal(engineeringStatus.spiralCount, 20, 'Espiral deve conter as 20 lâminas dos carrosséis');
+  assert.equal(engineeringStatus.browserCount, 4, 'Contato deve ter 4 browsers');
+  assert.deepEqual(engineeringStatus.browserUrls, [
+    'https://wa.me/5521982566564',
+    'https://www.linkedin.com/in/camillapaschoal/',
+    'https://github.com/ccpaschoal',
+    'mailto:camillacpaschoal@gmail.com'
+  ], 'Browsers de contato devem apontar para os links certos');
+  assert.equal(engineeringStatus.clickableCount, 8, '4 celulares + 4 browsers clicáveis');
   assert.ok(engineeringStatus.hasUrls, 'Todos os alvos interativos devem possuir URL válida');
 
-  // A passagem para a película mantém as duas cenas visíveis enquanto a fita se aproxima.
+  // Transições: cenas visíveis por tempo (com sobreposição suave entre atos)
   for (const [time, expected] of [
-    [21, [true, false, false, false]],
+    [20, [true, false, false, false]],
     [24, [true, true, false, false]],
-    [25, [true, true, false, false]],
-    [26, [true, true, false, false]],
     [28, [false, true, false, false]],
-    [47, [false, true, false, false]],
-    [50, [false, false, true, false]],
-    [73, [false, false, true, false]],
-    [75, [false, false, false, true]]
+    [42, [false, true, false, false]],
+    [45, [false, true, true, false]],
+    [55, [false, false, true, false]],
+    [72, [false, false, true, true]],
+    [80, [false, false, false, true]]
   ]) {
     const visible = await page.evaluate((t) => {
       const app = window.portfolioApp;
@@ -270,86 +252,84 @@ try {
       app.masterTimeline.time(time);
       return {
         opacity: app.leftPolaroid.children[0].material.opacity,
-        filmZ: app.kodakFilmStrip.position.z,
-        filmScale: app.kodakFilmStrip.scale.x
+        ringZ: app.carouselRingGroup.position.z,
+        ringScale: app.carouselRingGroup.scale.x
       };
     };
-    return { before: sample(22), middle: sample(25), after: sample(28), reversed: sample(20) };
+    return { before: sample(23), middle: sample(25), after: sample(28), reversed: sample(20) };
   });
-  assert.ok(transition.before.filmZ < transition.middle.filmZ && transition.middle.filmZ < transition.after.filmZ,
-    'Fita deve se aproximar continuamente da câmera');
-  assert.ok(transition.before.filmScale < transition.middle.filmScale && transition.middle.filmScale < transition.after.filmScale,
-    'Fita deve ganhar escala sem salto');
+  assert.ok(transition.before.ringZ < transition.middle.ringZ && transition.middle.ringZ < transition.after.ringZ,
+    'Carrossel de celulares deve se aproximar continuamente da câmera');
+  assert.ok(transition.before.ringScale < transition.middle.ringScale && transition.middle.ringScale <= transition.after.ringScale,
+    'Carrossel deve ganhar escala sem salto');
   assert.ok(transition.middle.opacity > 0 && transition.middle.opacity < 1,
     'Polaroids devem desaparecer gradualmente');
   assert.equal(transition.reversed.opacity, 1, 'Voltar a rolagem deve restaurar as polaroids');
 
-  const filmAndPhones = await page.evaluate(() => {
+  // Espiral: desce continuamente e a lâmina da vez fica de frente (θ + giro ≈ 0)
+  const spiral = await page.evaluate(() => {
     const app = window.portfolioApp;
-    const film = app.kodakFilmStrip.children.find(child =>
-      child.geometry?.parameters?.width === app.totalFilmWidth);
-    const position = film.geometry.attributes.position;
-    const rowStart = film.geometry.parameters.widthSegments + 1;
-    let nearZero = rowStart + 1;
-    for (let i = rowStart + 1; i < rowStart * 2 - 1; i++) {
-      if (Math.abs(position.getX(i) + film.position.x) <
-          Math.abs(position.getX(nearZero) + film.position.x)) nearZero = i;
-    }
-    const slope = (position.getZ(nearZero + 1) - position.getZ(nearZero - 1)) /
-      (position.getX(nearZero + 1) - position.getX(nearZero - 1));
-    return {
-      filmSegmentsX: film.geometry.parameters.widthSegments,
-      filmSegmentsY: film.geometry.parameters.heightSegments,
-      slope,
-      firstSlideRotY: app.kodakFilmStrip.children.find(child =>
-        child.position.x === 0 && child.geometry?.parameters?.width === 176)?.rotation.y
+    const at = (t) => {
+      app.masterTimeline.time(t);
+      return { y: app.spiralCarouselGroup.position.y, rotY: app.spiralCarouselGroup.rotation.y };
     };
+    const a = at(52); const b = at(60); const c = at(68);
+    app.masterTimeline.time(60);
+    const front = app.spiralSlides.reduce((best, s) => {
+      const z = s.getWorldPosition(app.camera.position.clone()).z;
+      return z > best.z ? { z, i: s.userData.index } : best;
+    }, { z: -Infinity, i: -1 });
+    return { a, b, c, frontIndex: front.i };
   });
-  assert.ok(filmAndPhones.filmSegmentsX >= 160 && filmAndPhones.filmSegmentsY === 2,
-    'Fita deve ter malha subdividida em X e Y');
-  assert.ok(filmAndPhones.slope > 0, 'Fita deve subir em Z próximo ao primeiro slide');
-  assert.ok(filmAndPhones.firstSlideRotY < 0, 'Fotograma deve seguir a tangente da fita');
-
-  assert.equal(await page.locator('#phone-stage .phone-copy').count(), 2,
-    'O palco do celular precisa dos dois títulos');
-  assert.equal(await page.locator('#phone-stage button').count(), 2,
-    'O carrossel precisa de setas anterior e próxima');
+  assert.ok(spiral.a.y < spiral.b.y && spiral.b.y < spiral.c.y, 'Espiral deve subir enquanto a narrativa desce');
+  assert.ok(spiral.a.rotY > spiral.b.rotY && spiral.b.rotY > spiral.c.rotY, 'Espiral deve girar continuamente');
+  assert.ok(spiral.frontIndex >= 8 && spiral.frontIndex <= 11, 'No meio do ato a lâmina da frente deve ser a do meio');
 
   const siteChange = await page.evaluate(async () => {
     const app = window.portfolioApp;
-    const before = app.phonesList[0].userData.url;
+    const frontUrl = () => app.phonesList[app.activeSiteIndex].userData.url;
+    const firstPhoneUrl = app.phonesList[0].userData.url;
+    const before = frontUrl();
     await app.showSite(1);
-    return { before, after: app.phonesList[0].userData.url, index: app.activeSiteIndex };
+    return {
+      before,
+      after: frontUrl(),
+      index: app.activeSiteIndex,
+      firstPhoneKept: app.phonesList[0].userData.url === firstPhoneUrl
+    };
   });
-  assert.notEqual(siteChange.after, siteChange.before, 'Seta deve trocar o site mostrado no celular');
+  assert.notEqual(siteChange.after, siteChange.before, 'Avançar deve trocar o site mostrado no celular');
   assert.equal(siteChange.index, 1, 'Carrossel deve avançar um item');
+  assert.ok(siteChange.firstPhoneKept, 'Cada celular deve manter o próprio link ao girar o carrossel');
+  await page.waitForTimeout(100);
+  assert.match(await page.locator('#site-caption').textContent(), /^02 \/ 04 · /,
+    'Legenda deve mostrar o número e o nome do site da frente');
 
-  const phoneClick = await page.evaluate(() => {
+  const clickAt = (time, pick) => page.evaluate(({ time, pick }) => {
     const app = window.portfolioApp;
-    app.masterTimeline.time(60);
+    app.masterTimeline.time(time);
     app.scene.updateMatrixWorld(true);
-    const point = app.phonesList[0].getWorldPosition(app.camera.position.clone()).project(app.camera);
+    const target = pick === 'phone'
+      ? (app.phonesList[app.activeSiteIndex] || app.phonesList[0])
+      : app.browserMockups[2];
+    const point = target.getWorldPosition(app.camera.position.clone()).project(app.camera);
     const x = (point.x + 1) * app.width / 2;
     const y = (1 - point.y) * app.height / 2;
+    window.__opened = null;
     window.open = (...args) => { window.__opened = args; return null; };
     const clicked = app.handleClick(x, y);
     return { clicked, opened: window.__opened };
-  });
-  assert.equal(phoneClick.clicked, true, 'Smartphone central deve responder ao clique');
+  }, { time, pick });
+
+  const phoneClick = await clickAt(35, 'phone');
+  assert.equal(phoneClick.clicked, true, 'Mockup frontal deve responder ao clique');
   assert.equal(phoneClick.opened?.[1], '_blank', 'Link deve abrir durante o gesto do clique');
   assert.match(phoneClick.opened?.[2] || '', /noopener/, 'Nova aba não deve acessar a página de origem');
   assert.equal(phoneClick.opened?.[0], siteChange.after, 'Clique no celular deve abrir o site exibido');
 
-  const vhsDock = await page.evaluate(() => {
-    const app = window.portfolioApp;
-    app.masterTimeline.time(76);
-    const arriving = app.vhsCassette.position.y;
-    app.masterTimeline.time(90);
-    return { hasPlayer: !!app.vhsPlayer, arriving, docked: app.vhsCassette.position.y };
-  });
-  assert.equal(vhsDock.hasPlayer, true, 'A cassette precisa de um reprodutor 3D');
-  assert.ok(vhsDock.arriving < -200 && Math.abs(vhsDock.docked + 30) < 1,
-    'Cassette deve subir e encaixar no reprodutor');
+  const browserClick = await clickAt(95, 'browser');
+  assert.equal(browserClick.clicked, true, 'Browser do GitHub deve responder ao clique');
+  assert.equal(browserClick.opened?.[0], 'https://github.com/ccpaschoal', 'Clique deve abrir o GitHub');
 
   await page.evaluate(() => window.portfolioApp.setProgress(0));
   await page.mouse.wheel(0, 100);
@@ -371,15 +351,15 @@ try {
     await mobile.locator('#intro-teaser').click();
     const mobileStatus = await mobile.evaluate(() => ({
       chapter: window.portfolioApp.currentChapter,
-      phoneScale: window.portfolioApp.chapter02Group.scale.x,
-      vhsScale: window.portfolioApp.chapter03Group.scale.x,
+      phoneScale: window.portfolioApp.chapter01Group.scale.x,
+      contactScale: window.portfolioApp.chapter03Group.scale.x,
       reducedMotion: window.portfolioApp.reducedMotion.matches,
       trackerTop: document.getElementById('chapter-tracker').getBoundingClientRect().top,
       projectsLink: !!document.querySelector('a[href="https://ccpaschoal.github.io/hamburgueria/"]')
     }));
     assert.equal(mobileStatus.chapter, 0, 'Teaser deve terminar imediatamente com movimento reduzido');
-    assert.ok(mobileStatus.phoneScale > 0.9 && mobileStatus.vhsScale < 1,
-      'Celular único deve ter tamanho legível no móvel');
+    assert.ok(mobileStatus.phoneScale > 0.9 && mobileStatus.contactScale < 1,
+      'Celular da frente deve ter tamanho legível e o contato deve caber no móvel');
     assert.equal(mobileStatus.reducedMotion, true);
     assert.ok(mobileStatus.trackerTop < 100, 'Tracker móvel deve ficar longe dos objetos centrais');
     assert.equal(mobileStatus.projectsLink, true, 'Projetos precisam de links HTML acessíveis');
