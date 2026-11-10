@@ -331,6 +331,36 @@ try {
   assert.equal(browserClick.clicked, true, 'Browser do GitHub deve responder ao clique');
   assert.equal(browserClick.opened?.[0], 'https://github.com/ccpaschoal', 'Clique deve abrir o GitHub');
 
+  // Rodinha nos celulares: um gesto troca um site; eventos do mesmo gesto não avançam a narrativa
+  console.log('-> Testando gestos da rodinha nos celulares e assentamento da espiral...');
+  await page.evaluate(() => window.portfolioApp.setProgress(0.35));
+  await page.waitForTimeout(400);
+  const siteNow = () => page.evaluate(() => window.portfolioApp.getCurrentSiteIndex());
+  const siteStart = await siteNow();
+  await page.mouse.wheel(0, 100);
+  await page.waitForTimeout(40);
+  await page.mouse.wheel(0, 100);
+  await page.waitForTimeout(300);
+  const siteAfterOneGesture = await siteNow();
+  await page.mouse.wheel(0, 100);
+  await page.waitForTimeout(300);
+  const siteAfterTwoGestures = await siteNow();
+  const phoneProgress = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
+  assert.equal(siteAfterOneGesture, (siteStart + 1) % 4, 'Um gesto de rodinha deve trocar exatamente um site');
+  assert.equal(siteAfterTwoGestures, (siteStart + 2) % 4, 'Um segundo gesto deve trocar mais um site');
+  assert.ok(Math.abs(phoneProgress - 0.35) < 0.005, 'Trocar sites não deve mover a narrativa');
+
+  // Espiral: ao parar de rolar, assenta na lâmina mais próxima (não volta para o meio do ato)
+  const stops = await page.evaluate(() => window.portfolioApp.spiralStops);
+  assert.equal(stops.length, 20, 'Cada lâmina da espiral precisa de um ponto de parada');
+  await page.evaluate((p) => window.portfolioApp.setProgress(p), stops[5] - 0.006);
+  await page.waitForTimeout(250);
+  await page.mouse.wheel(0, 30);
+  await page.waitForTimeout(1800);
+  const settled = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
+  assert.ok(Math.abs(settled - stops[5]) < 0.0015,
+    `Espiral deve assentar na lâmina 6 (${stops[5].toFixed(4)}), parou em ${settled.toFixed(4)}`);
+
   await page.evaluate(() => window.portfolioApp.setProgress(0));
   await page.mouse.wheel(0, 100);
   await page.waitForTimeout(700);

@@ -75,6 +75,9 @@ export interface PortfolioSceneInstance {
   getCurrentSiteIndex: () => number;
   onSiteChange?: (site: SiteItem, index: number, total: number) => void;
   setProgress?: (p: number) => void;
+  /** Progresso (0–1) em que cada lâmina da espiral fica de frente */
+  spiralStops?: number[];
+  phonesList?: THREE.Object3D[];
   /** Animação de navegação do tracker/teclado (a rolagem manual a cancela) */
   navTween?: gsap.core.Timeline | null;
   dispose: () => void;

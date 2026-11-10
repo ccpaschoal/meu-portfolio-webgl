@@ -866,11 +866,19 @@ export class PortfolioScene {
     }
   }
 
+  // Gira o carrossel um site. Se já estiver girando, encadeia a partir do destino atual
+  // (cliques rápidos avançam um site cada, sem serem ignorados).
   showSite(direction) {
-    if (this.siteTransition?.isActive()) return Promise.resolve(false);
-    const step = (Math.PI * 2) / sitesData.length;
-    const targetAngle = this.carouselState.angle - direction * step;
-    const nextIdx = (this.activeSiteIndex + direction + sitesData.length) % sitesData.length;
+    const total = sitesData.length;
+    const step = (Math.PI * 2) / total;
+    const moving = this.siteTransition?.isActive();
+    const fromAngle = moving ? this.siteTargetAngle : this.carouselState.angle;
+    const fromIdx = moving ? this.siteTargetIndex : this.activeSiteIndex;
+    const targetAngle = fromAngle - direction * step;
+    const nextIdx = (fromIdx + direction + total) % total;
+    this.siteTargetAngle = targetAngle;
+    this.siteTargetIndex = nextIdx;
+    this.siteTransition?.kill();
 
     return new Promise(resolve => {
       this.siteTransition = gsap.to(this.carouselState, {
@@ -880,6 +888,7 @@ export class PortfolioScene {
         onUpdate: () => {
           this.updateMockupCarouselPositions(this.carouselState.angle);
         },
+        onInterrupt: () => resolve(false),
         onComplete: () => {
           this.activeSiteIndex = nextIdx;
           this.updateMockupCarouselPositions(targetAngle);
@@ -898,8 +907,9 @@ export class PortfolioScene {
     return this.showSite(-1);
   }
 
+  // Site de destino (durante o giro) ou o site da frente
   getCurrentSiteIndex() {
-    return this.activeSiteIndex;
+    return this.siteTransition?.isActive() ? this.siteTargetIndex : this.activeSiteIndex;
   }
 
   /* ==========================================================================
@@ -1340,6 +1350,11 @@ export class PortfolioScene {
     const totalSlides = spiralSlidesData.length;
     const totalClimbY = (totalSlides - 1) * SPIRAL.pitch;
     const totalTwistY = -(totalSlides - 1) * SPIRAL.angleStep;
+    const DESCENT_START = 49;
+    const DESCENT_DURATION = 22;
+    // Progresso em que cada lâmina fica de frente: a rolagem assenta na lâmina mais próxima
+    this.spiralStops = Array.from({ length: totalSlides }, (_, k) =>
+      (DESCENT_START + (k * DESCENT_DURATION) / (totalSlides - 1)) / 100);
 
     this.masterTimeline.fromTo(this.spiralRimLight, { intensity: 0 }, { intensity: 3.2, duration: 4, immediateRender: false }, 44);
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
@@ -1351,10 +1366,10 @@ export class PortfolioScene {
 
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: 0 },
-      { y: totalClimbY, duration: 22, ease: 'none', immediateRender: false }, 49);
+      { y: totalClimbY, duration: DESCENT_DURATION, ease: 'none', immediateRender: false }, DESCENT_START);
     this.masterTimeline.fromTo(this.spiralCarouselGroup.rotation,
       { y: 0 },
-      { y: totalTwistY, duration: 22, ease: 'none', immediateRender: false }, 49);
+      { y: totalTwistY, duration: DESCENT_DURATION, ease: 'none', immediateRender: false }, DESCENT_START);
 
     this.masterTimeline.fromTo(this.spiralCarouselGroup.position,
       { y: totalClimbY, z: SPIRAL.depth },
