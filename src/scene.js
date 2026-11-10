@@ -301,7 +301,7 @@ export class PortfolioScene {
   buildChapter00() {
     const frameGeo = new THREE.PlaneGeometry(330, 400);
     // Acabamento tátil de papel fotográfico acetinado sob luz de estúdio
-    const frameMat = new THREE.MeshStandardMaterial({
+    const frameMat = new THREE.MeshPhysicalMaterial({
       color: 0xf6f4eb,
       roughness: 0.52,
       metalness: 0.05,
@@ -1760,14 +1760,22 @@ export class PortfolioScene {
   }
 
   bindEvents() {
-    window.addEventListener('resize', () => {
+    this._onResize = () => {
       this.width = window.innerWidth;
       this.height = window.innerHeight;
       this.camera.aspect = this.width / this.height;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(this.width, this.height);
       this.updateResponsiveLayout();
-    });
+    };
+    window.addEventListener('resize', this._onResize);
+  }
+
+  unbindEvents() {
+    if (this._onResize) {
+      window.removeEventListener('resize', this._onResize);
+      this._onResize = null;
+    }
   }
 
   animate() {
@@ -1883,14 +1891,41 @@ export class PortfolioScene {
   }
 
   dispose() {
-    if (this.animId) cancelAnimationFrame(this.animId);
+    if (this.animId) {
+      cancelAnimationFrame(this.animId);
+      this.animId = null;
+    }
+    if (this.masterTimeline) this.masterTimeline.kill();
+    if (this.teaserTimeline) this.teaserTimeline.kill();
+    this.unbindEvents();
+
     this.scene.traverse((obj) => {
-      if (obj.geometry) obj.geometry.dispose();
+      if (obj.geometry) {
+        obj.geometry.dispose();
+      }
       if (obj.material) {
-        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-        else obj.material.dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const m of mats) {
+          for (const key of Object.keys(m)) {
+            const prop = m[key];
+            if (prop && typeof prop === 'object' && typeof prop.dispose === 'function') {
+              prop.dispose();
+            }
+          }
+          m.dispose();
+        }
       }
     });
-    this.renderer.dispose();
+
+    if (this.dustGeometry) this.dustGeometry.dispose();
+    if (this.dustMaterial) this.dustMaterial.dispose();
+    if (this.vhsLabelTexture) this.vhsLabelTexture.dispose();
+
+    if (this.renderer) {
+      this.renderer.dispose();
+      if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+        this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+      }
+    }
   }
 }

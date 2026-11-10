@@ -12,66 +12,7 @@
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body class="is-teaser">
-  <!-- 1. Canvas 3D WebGL -->
-  <div id="webgl-container"></div>
-
-  <!-- Cortina de transição cinematográfica para salto direto de capítulos -->
-  <div id="chapter-curtain" class="chapter-curtain" aria-hidden="true"></div>
-
-  <!-- 2. Tela Inicial Teaser (Prólogo: Apenas Seta e Hint) -->
-  <div id="intro-teaser" class="intro-teaser" role="button" aria-label="Entrar no portfólio" tabindex="0">
-    <div class="teaser-arrow">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="4" x2="12" y2="20"></line>
-        <polyline points="18 14 12 20 6 14"></polyline>
-      </svg>
-    </div>
-    <span class="teaser-hint">CLIQUE OU ROLE</span>
-  </div>
-
-  <!-- 3. Tracker Lateral Direito Monoespaçado -->
-  <nav id="chapter-tracker" class="chapter-tracker" aria-label="Progresso de capítulos">
-    <div class="tracker-rail"><div class="tracker-indicator" id="tracker-indicator"></div></div>
-    <ul class="tracker-list">
-      <li data-chapter="0" class="active"><button type="button" class="tracker-button" aria-current="step"><span class="tracker-num">00</span><span class="tracker-label">MATRIZ</span></button></li>
-      <li data-chapter="1"><button type="button" class="tracker-button"><span class="tracker-num">01</span><span class="tracker-label">PELÍCULA</span></button></li>
-      <li data-chapter="2"><button type="button" class="tracker-button"><span class="tracker-num">02</span><span class="tracker-label">DIGITAL</span></button></li>
-      <li data-chapter="3"><button type="button" class="tracker-button"><span class="tracker-num">03</span><span class="tracker-label">ARQUIVO</span></button></li>
-    </ul>
-  </nav>
-
-  <section id="phone-stage" class="phone-stage" aria-label="Sites no celular">
-    <div class="phone-copy phone-copy-left">
-      <span class="phone-headline">ADAPTÁVEL.</span>
-      <span class="phone-subcopy">VAMOS DESCOBRIR</span>
-    </div>
-    <div class="phone-copy phone-copy-right">
-      <span class="phone-headline">DO SEU JEITO.</span>
-      <span class="phone-subcopy">O QUE MAIS COMBINA COM VOCÊ?</span>
-    </div>
-    <button type="button" id="site-prev" class="site-arrow site-arrow-prev" aria-label="Site anterior">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7" /></svg>
-    </button>
-    <button type="button" id="site-next" class="site-arrow site-arrow-next" aria-label="Próximo site">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 5 7 7-7 7" /></svg>
-    </button>
-    <p id="site-caption" class="site-caption" aria-live="polite">01 / 04 · Aconchego Festas e Eventos</p>
-  </section>
-
-  <main class="sr-only">
-    <h1>Camilla Paschoal — design e desenvolvimento web</h1>
-    <nav aria-label="Links diretos">
-      <a href="https://aconchegoeventos.pages.dev">Aconchego Festas e Eventos</a>
-      <a href="https://ccpaschoal.github.io/vanessachavestdah/">Vanessa Chaves</a>
-      <a href="https://ccpaschoal.github.io/hamburgueria/">Chapa 62</a>
-      <a href="https://lojaaura.pages.dev/">Loja AURA</a>
-      <a href="https://wa.me/5521982566564">WhatsApp</a>
-      <a href="https://www.linkedin.com/in/camillapaschoal/">LinkedIn</a>
-      <a href="https://github.com/ccpaschoal">GitHub</a>
-      <a href="mailto:camillacpaschoal@gmail.com">E-mail</a>
-    </nav>
-  </main>
-
-  <script type="module" src="./src/main.js"></script>
+  <div id="root"></div>
+  <script type="module" src="./src/main.tsx"></script>
 </body>
 </html>
