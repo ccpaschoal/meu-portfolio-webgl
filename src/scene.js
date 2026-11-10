@@ -16,7 +16,7 @@ import { getAssetUrl } from './utils/assets.js';
 
 // Hélice do Ato 02: raio, descida por lâmina e giro por lâmina (~30°)
 // depth: recuo do eixo da hélice em z (a lâmina da frente fica em z = radius + depth)
-const SPIRAL = { radius: 520, pitch: 140, angleStep: 0.52, depth: -330 };
+const SPIRAL = { radius: 520, pitch: 140, angleStep: 0.52, depth: -330, slideW: 222, slideH: 277.5 };
 
 // Carrega uma única vez as webfonts usadas nos textos desenhados em canvas.
 // O primeiro desenho pode sair com fonte de sistema; quando a promessa resolve, os canvases são redesenhados.
@@ -914,8 +914,8 @@ export class PortfolioScene {
     this.spiralMaterials = [];
 
     // Proporção 4:5 de carrossel do Instagram
-    const SLIDE_W = 222;
-    const SLIDE_H = 277.5;
+    const SLIDE_W = SPIRAL.slideW;
+    const SLIDE_H = SPIRAL.slideH;
     const slideGeo = new THREE.PlaneGeometry(SLIDE_W, SLIDE_H);
     const frameGeo = new THREE.BoxGeometry(SLIDE_W + 12, SLIDE_H + 12, 5);
     const borderGeo = new THREE.EdgesGeometry(frameGeo);
@@ -1000,6 +1000,11 @@ export class PortfolioScene {
         slideMat.map = tex;
         slideMat.color.set(0xffffff);
         slideMat.needsUpdate = true;
+        // Mantém a proporção real da arte (capas da Vanessa são 1:1, as demais 4:5)
+        const img = tex.image;
+        if (img?.width && img?.height) {
+          slideGroup.scale.y = (img.height / img.width) / (SPIRAL.slideH / SPIRAL.slideW);
+        }
         this.renderer.initTexture?.(tex);
       });
     });

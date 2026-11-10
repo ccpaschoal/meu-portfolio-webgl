@@ -24,15 +24,15 @@ export const spiralSlidesData = [
   { id: 'aura-3', title: 'AURA S3 Air · 02', category: 'Loja AURA', src: getAssetUrl('assets/carrosseis/5-aura/2.webp') },
   { id: 'aura-4', title: 'AURA S3 Air · Contracapa', category: 'Loja AURA', src: getAssetUrl('assets/carrosseis/5-aura/contracapa.webp') },
 
-  // 3. Vanessa Chaves (Neuropsicologia / TDAH / TEA) - Capas de cada carrossel (10 capas)
-  { id: 'vanessa-1', title: 'Maior Dificuldade', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/1-maior-dificuldade/1.webp') },
-  { id: 'vanessa-2', title: 'Quem é Vanessa Chaves', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/1-quem-e-vanessa-chaves/1.webp') },
-  { id: 'vanessa-3', title: 'Calma em Casa', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/2-calma-em-casa/1.webp') },
+  // 3. Vanessa Chaves (Neuropsicologia / TDAH / TEA) - Capa (capa.webp) de cada carrossel (10 capas)
+  { id: 'vanessa-1', title: 'Maior Dificuldade', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/1-maior-dificuldade/capa.webp') },
+  { id: 'vanessa-2', title: 'Quem é Vanessa Chaves', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/1-quem-e-vanessa-chaves/capa.webp') },
+  { id: 'vanessa-3', title: 'Calma em Casa', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/2-calma-em-casa/capa.webp') },
   { id: 'vanessa-4', title: 'Nosso Espaço', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/2-conhecendo-nosso-espaco/capa.webp') },
-  { id: 'vanessa-5', title: 'Não Gritar', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/2-nao-gritar/1.webp') },
-  { id: 'vanessa-6', title: 'Autismo e Comunicação', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/3-autismo-e-comunicacao/1.webp') },
-  { id: 'vanessa-7', title: 'Nem todo Comportamento', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/3-nem-todo-comportamento/1.webp') },
-  { id: 'vanessa-8', title: 'E quem cuida da mãe?', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/4-e-quem-cuida-da-mae/1.webp') },
-  { id: 'vanessa-9', title: 'Neuroplasticidade', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/4-neuroplasticidade/1.webp') },
-  { id: 'vanessa-10', title: 'Equoterapia', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/5-equoterapia/1.webp') }
+  { id: 'vanessa-5', title: 'Não Gritar', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/2-nao-gritar/capa.webp') },
+  { id: 'vanessa-6', title: 'Autismo e Comunicação', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/3-autismo-e-comunicacao/capa.webp') },
+  { id: 'vanessa-7', title: 'Nem todo Comportamento', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/3-nem-todo-comportamento/capa.webp') },
+  { id: 'vanessa-8', title: 'E quem cuida da mãe?', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/4-e-quem-cuida-da-mae/capa.webp') },
+  { id: 'vanessa-9', title: 'Neuroplasticidade', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/4-neuroplasticidade/capa.webp') },
+  { id: 'vanessa-10', title: 'Equoterapia', category: 'Vanessa Chaves', src: getAssetUrl('assets/carrosseis/5-equoterapia/capa.webp') }
 ];
