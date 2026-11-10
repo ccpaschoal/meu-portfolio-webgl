@@ -160,9 +160,9 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         const state = { p: targetProgress };
         snapTween = gsap.to(state, {
           p: destination,
-          // ajuste curto (lâmina vizinha) é rápido; troca de ato mantém o ritmo de antes
-          duration: Math.min(0.85, 0.3 + Math.abs(destination - targetProgress) * 6),
-          ease: 'power2.out',
+          // ajuste curto (lâmina vizinha) é rápido; troca de ato acelera e freia suave
+          duration: Math.min(1.4, 0.3 + Math.abs(destination - targetProgress) * 6),
+          ease: Math.abs(destination - targetProgress) > 0.05 ? 'power2.inOut' : 'power2.out',
           onUpdate: () => {
             targetProgress = state.p;
           },

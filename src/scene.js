@@ -14,6 +14,9 @@ import { getAssetUrl } from './utils/assets.js';
  * 03 / CONTATO: Mockups de Browser Flutuando & Tipografia "ADAPTÁVEL. DO SEU JEITO."
  */
 
+// Ato 01: os celulares entram a partir deste x (fora da tela, à esquerda)
+const PHONE_ENTRY_X = -1500;
+
 // Hélice do Ato 02: raio, descida por lâmina e giro por lâmina (~30°)
 // depth: recuo do eixo da hélice em z (a lâmina da frente fica em z = radius + depth)
 const SPIRAL = { radius: 520, pitch: 140, angleStep: 0.52, depth: -330, slideW: 222, slideH: 277.5 };
@@ -537,6 +540,8 @@ export class PortfolioScene {
      ATO 01: 4 SMARTPHONES 3D EM CARROSSEL CIRCULAR COM PROFUNDIDADE
      ========================================================================== */
   buildChapter01() {
+    // Trajeto dos celulares: 0 = todos fora da tela à esquerda, 1 = no círculo, 2 = saíram pela esquerda
+    this.phoneTravel = 0;
     this.activeSiteIndex = 0;
     this.carouselAngle = 0;
     this.carouselState = { angle: 0 };
@@ -698,6 +703,9 @@ export class PortfolioScene {
     // 4. Constrói os 4 mockups em 3D
     sitesData.forEach((site, i) => {
       const mockup = new THREE.Group();
+      const applyHoverScale = () => {
+        mockup.scale.setScalar((mockup.userData.baseScale || 1) * mockup.userData.hoverBoost);
+      };
 
       const chassis = new THREE.Mesh(chassisGeo, titaniumMat);
       mockup.add(chassis);
@@ -773,19 +781,15 @@ export class PortfolioScene {
         title: site.title,
         isClickable: true,
         baseScale: 1.0,
+        hoverBoost: 1,
+        entry: 0, // calculado a cada atualização a partir de phoneTravel
         targetPos: { x: 0, y: 10, z: 330 },
+        // O hover anima só um multiplicador; a escala final é baseScale × hoverBoost
         onHoverStart: () => {
-          gsap.to(mockup.scale, {
-            x: (mockup.userData.baseScale || 1.0) * 1.04,
-            y: (mockup.userData.baseScale || 1.0) * 1.04,
-            z: (mockup.userData.baseScale || 1.0) * 1.04,
-            duration: 0.25,
-            ease: 'power2.out'
-          });
+          gsap.to(mockup.userData, { hoverBoost: 1.04, duration: 0.25, ease: 'power2.out', overwrite: true, onUpdate: applyHoverScale });
         },
         onHoverEnd: () => {
-          const bs = mockup.userData.baseScale || 1.0;
-          gsap.to(mockup.scale, { x: bs, y: bs, z: bs, duration: 0.25, ease: 'power2.out' });
+          gsap.to(mockup.userData, { hoverBoost: 1, duration: 0.25, ease: 'power2.out', overwrite: true, onUpdate: applyHoverScale });
         }
       };
 
@@ -802,8 +806,12 @@ export class PortfolioScene {
     // Materiais que vão a opacidade 1 (o vidro frontal fica em 0.08)
     this.phoneOpaqueMaterials = this.mockupMaterials.filter(m => m !== frontGlassMat);
 
+    // O anel fica fixo no lugar; cada celular entra pela esquerda (userData.entry: 0 fora da
+    // tela -> 1 no círculo). Estado inicial = começo da entrada na timeline, sem saltos.
     this.carouselRingGroup.position.set(0, 10, -40);
     this.carouselRingGroup.rotation.set(0.08, 0, 0);
+    this.phoneOpaqueMaterials.forEach((m) => { m.opacity = 0; });
+    frontGlassMat.opacity = 0;
     this.chapter01Group.add(this.carouselRingGroup);
 
     this.updateMockupCarouselPositions(0);
@@ -815,17 +823,32 @@ export class PortfolioScene {
     const NUM = this.mockups.length;
     const RADIUS_X = 410;
     const RADIUS_Z = 330;
-    const step = (Math.PI * 2) / NUM;
+    const TWO_PI = Math.PI * 2;
+    const step = TWO_PI / NUM;
+    const travel = this.phoneTravel ?? 1;
+    const SPAN = 0.46; // fatia do trajeto que cada celular leva para chegar/sair
+    const STAGGER = (1 - SPAN) / (NUM - 1); // intervalo entre um celular e o próximo
 
     this.mockups.forEach((mockup, i) => {
       const theta = angle + i * step;
+
+      // Ordem pelo lugar no círculo: esquerda (0), fundo (1), direita (2), frente (3)
+      const thetaNorm = ((theta % TWO_PI) + TWO_PI) % TWO_PI;
+      const rank = (Math.round((TWO_PI - thetaNorm) / step) + NUM - 1) % NUM;
+      let entry;
+      if (travel <= 1) {
+        const local = THREE.MathUtils.clamp((travel - rank * STAGGER) / SPAN, 0, 1);
+        entry = 1 - (1 - local) * (1 - local); // chega freando (power2.out)
+      } else {
+        const local = THREE.MathUtils.clamp((travel - 1 - rank * STAGGER) / SPAN, 0, 1);
+        entry = 1 - local * local; // sai acelerando para a esquerda (power2.in)
+      }
+      mockup.userData.entry = entry;
       const rawX = RADIUS_X * Math.sin(theta);
       const rawZ = RADIUS_Z * Math.cos(theta);
       const x = Math.abs(rawX) < 0.001 ? 0 : rawX;
       const z = Math.abs(rawZ) < 0.001 ? 0 : rawZ; // z > 0: frente; z < 0: fundo/trás
       const y = Math.sin(theta * 2 + 0.4) * 6;
-
-      mockup.position.set(x, y, z);
 
       const frontFactor = (z / RADIUS_Z + 1) * 0.5;
 
@@ -834,11 +857,20 @@ export class PortfolioScene {
       const rotX = 0.03 + (1.0 - frontFactor) * 0.06;
       const rotZ = Math.sin(theta) * -0.035;
 
-      mockup.rotation.set(rotX, rotY, rotZ);
+      // Entrada/saída pela esquerda: desliza entre fora da tela e o lugar no círculo,
+      // com um arco leve, profundidade achatada e um giro que se desfaz na chegada
+      const e = entry;
+      const k = 1 - e;
+      mockup.position.set(
+        x + k * (PHONE_ENTRY_X - x),
+        y + Math.sin(Math.PI * e) * 26,
+        z * (1 - k * 0.6)
+      );
+      mockup.rotation.set(rotX, rotY + k * 0.55, rotZ + k * 0.08);
 
       // Escala com profundidade: 1.05 na frente, 0.72 no fundo
       const scale = THREE.MathUtils.lerp(0.72, 1.05, frontFactor);
-      mockup.scale.setScalar(scale);
+      mockup.scale.setScalar(scale * (mockup.userData.hoverBoost ?? 1));
       mockup.userData.baseScale = scale;
 
       mockup.renderOrder = Math.round(frontFactor * 50);
@@ -849,6 +881,9 @@ export class PortfolioScene {
         mockup.userData.targetPos.z = z;
       }
     });
+
+    // Durante a entrada/saída lateral o site da frente não muda (evita trocar a legenda no caminho)
+    if (travel !== 1) return;
 
     let bestZ = -Infinity;
     let frontIdx = 0;
@@ -883,8 +918,8 @@ export class PortfolioScene {
     return new Promise(resolve => {
       this.siteTransition = gsap.to(this.carouselState, {
         angle: targetAngle,
-        duration: this.reducedMotion.matches ? 0 : 0.72,
-        ease: 'power2.out',
+        duration: this.reducedMotion.matches ? 0 : 0.8,
+        ease: 'sine.inOut',
         onUpdate: () => {
           this.updateMockupCarouselPositions(this.carouselState.angle);
         },
@@ -1235,6 +1270,7 @@ export class PortfolioScene {
       slot.userData.layout = { arc: { pos: item.pos, rot: item.rot } };
       slot.add(browserGroup);
 
+      browserGroup.position.y = -210; // estado inicial = começo da subida na timeline
       browserGroup.userData = {
         id: item.id,
         url: item.url,
@@ -1318,31 +1354,28 @@ export class PortfolioScene {
     /* --- ATO 01: 4 SMARTPHONES EM CARROSSEL CIRCULAR (21s -> 48s) ---
        Platô estável de 28s a 42s (snap em 0.35: a rodinha folheia os sites) */
     this.masterTimeline.fromTo(this.phoneRimLight, { intensity: 0 }, { intensity: 1.4, duration: 4, immediateRender: false }, 22);
-    this.masterTimeline.fromTo(this.carouselRingGroup.position,
-      { x: 0, y: -40, z: -850 },
-      { x: 0, y: 10, z: -40, duration: 6, ease: 'power2.out', immediateRender: false }, 22);
-    this.masterTimeline.fromTo(this.carouselRingGroup.scale,
-      { x: 0.1, y: 0.1, z: 0.1 },
-      { x: 1, y: 1, z: 1, duration: 6, ease: 'power2.out', immediateRender: false }, 22);
-    this.masterTimeline.fromTo(this.carouselRingGroup.rotation,
-      { x: 0.25, y: -0.35, z: 0.05 },
-      { x: 0.08, y: 0, z: 0, duration: 6, ease: 'power2.out', immediateRender: false }, 22);
+
+    // Entrada (21.5s -> 28s): os 4 celulares chegam pela esquerda, um depois do outro, e formam
+    // o círculo — o da esquerda, o do fundo, o da direita e, por último, o da frente.
+    const placePhones = () => this.updateMockupCarouselPositions(this.carouselState.angle);
+    this.masterTimeline.fromTo(this, { phoneTravel: 0 }, {
+      phoneTravel: 1, duration: 6.5, ease: 'none', immediateRender: false, onUpdate: placePhones
+    }, 21.5);
     this.masterTimeline.fromTo(this.phoneOpaqueMaterials,
       { opacity: 0 },
-      { opacity: 1, duration: 4.5, ease: 'power2.out', immediateRender: false }, 22);
+      { opacity: 1, duration: 1.6, ease: 'power1.out', immediateRender: false }, 21.5);
     this.masterTimeline.fromTo(this.phoneFrontGlassMat,
       { opacity: 0 },
-      { opacity: 0.08, duration: 4.5, ease: 'power2.out', immediateRender: false }, 22);
+      { opacity: 0.08, duration: 1.6, ease: 'power1.out', immediateRender: false }, 21.5);
 
-    // Saída: recua para o fundo abrindo espaço para a espiral (42s -> 47s)
-    this.masterTimeline.to(this.carouselRingGroup.position,
-      { x: 0, y: 280, z: -700, duration: 5, ease: 'power2.in', immediateRender: false }, 42);
-    this.masterTimeline.to(this.carouselRingGroup.scale,
-      { x: 0.4, y: 0.4, z: 0.4, duration: 5, ease: 'power2.in', immediateRender: false }, 42);
+    // Saída (42s -> 47s): na ida para a espiral, voltam pela esquerda na mesma ordem
+    this.masterTimeline.fromTo(this, { phoneTravel: 1 }, {
+      phoneTravel: 2, duration: 5, ease: 'none', immediateRender: false, onUpdate: placePhones
+    }, 42);
     this.masterTimeline.to(this.phoneOpaqueMaterials,
-      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 43);
+      { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 46.4);
     this.masterTimeline.to(this.phoneFrontGlassMat,
-      { opacity: 0, duration: 4, ease: 'power2.in', immediateRender: false }, 43);
+      { opacity: 0, duration: 0.8, ease: 'power1.in', immediateRender: false }, 46.4);
     this.masterTimeline.to(this.phoneRimLight, { intensity: 0, duration: 3, immediateRender: false }, 44);
 
     /* --- ATO 02: ESPIRAL 3D DOS CARROSSÉIS (44s -> 76s) ---
@@ -1564,8 +1597,8 @@ export class PortfolioScene {
     if (hit && hit.userData?.url) {
       const url = hit.userData.url;
       const baseZ = hit.userData.baseZ !== undefined ? hit.userData.baseZ : hit.position.z;
-      // Micro-afundamento mecânico de 120ms (ease: 'power2.inOut')
-      gsap.to(hit.position, {
+      // Micro-afundamento mecânico de 120ms (só nos browsers; os celulares são posicionados pelo carrossel)
+      if (!hit.userData.targetPos) gsap.to(hit.position, {
         z: baseZ - 3,
         duration: 0.06,
         ease: 'power2.inOut',

@@ -252,16 +252,24 @@ try {
       app.masterTimeline.time(time);
       return {
         opacity: app.leftPolaroid.children[0].material.opacity,
-        ringZ: app.carouselRingGroup.position.z,
-        ringScale: app.carouselRingGroup.scale.x
+        frontX: app.phonesList[0].position.x,
+        entries: app.phonesList.map(m => m.userData.entry)
       };
     };
-    return { before: sample(23), middle: sample(25), after: sample(28), reversed: sample(20) };
+    return { before: sample(23), middle: sample(25.5), after: sample(28.2), reversed: sample(20) };
   });
-  assert.ok(transition.before.ringZ < transition.middle.ringZ && transition.middle.ringZ < transition.after.ringZ,
-    'Carrossel de celulares deve se aproximar continuamente da câmera');
-  assert.ok(transition.before.ringScale < transition.middle.ringScale && transition.middle.ringScale <= transition.after.ringScale,
-    'Carrossel deve ganhar escala sem salto');
+  assert.ok(transition.before.frontX < -900, 'Celular da frente começa fora da tela, à esquerda');
+  assert.ok(transition.before.frontX < transition.middle.frontX && transition.middle.frontX < transition.after.frontX,
+    'Celular da frente deve chegar pela esquerda continuamente');
+  assert.ok(Math.abs(transition.after.frontX) < 1, 'Celular da frente termina no centro do círculo');
+  assert.ok(transition.after.entries.every(e => e === 1), 'Os 4 celulares formam o círculo antes do platô');
+  assert.deepEqual(transition.reversed.entries, [0, 0, 0, 0], 'Voltar a rolagem devolve os celulares para a esquerda');
+  const exitX = await page.evaluate(() => {
+    const app = window.portfolioApp;
+    app.masterTimeline.time(47.2);
+    return app.phonesList.map(m => m.position.x);
+  });
+  assert.ok(exitX.every(x => x < -900), 'Na ida para a espiral os celulares saem pela esquerda');
   assert.ok(transition.middle.opacity > 0 && transition.middle.opacity < 1,
     'Polaroids devem desaparecer gradualmente');
   assert.equal(transition.reversed.opacity, 1, 'Voltar a rolagem deve restaurar as polaroids');
