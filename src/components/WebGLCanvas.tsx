@@ -57,6 +57,9 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     let animFrameId: number | null = null;
 
     const SCROLL_FACTOR = 0.00028;
+    // A narrativa nunca corre mais que isto à frente do que está na tela: num giro forte da
+    // rodinha os objetos aceleram, mas não "teletransportam" de um ato para outro
+    const MAX_LEAD = 0.06;
     // Na espiral a rolagem anda mais devagar para dar para ver cada lâmina (~1,5 lâmina por clique)
     const scrollSpeedAt = (p: number) => {
       const stops = spiralStops();
@@ -69,9 +72,10 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     let snapTween: gsap.core.Tween | null = null;
     let lastScrollDelta = 0;
     let lastWheelAt = 0;
+    // O giro de rodinha que revela o site termina ali: a narrativa só anda num gesto novo
+    let revealGestureActive = false;
 
-    // Platôs e começo de cada ato no tempo da master timeline (0–100s)
-    const PHONE_PLATEAU = 0.35;
+    // Começo de cada ato no tempo da master timeline (0–100s)
     const CONTACT_PLATEAU = 0.90;
     const CHAPTER_STARTS = [0, 24, 46, 73];
     const chapterAt = (time: number) => {
@@ -80,70 +84,40 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       return chapter;
     };
     const spiralStops = () => app.spiralStops?.length ? app.spiralStops : [0.49, 0.71];
+    const phoneStops = () => app.phoneStops?.length ? app.phoneStops : [0.29, 0.33, 0.37, 0.41];
+    const nearestOf = (stops: number[], p: number) => {
+      let nearest = stops[0];
+      for (const stop of stops) if (Math.abs(stop - p) < Math.abs(nearest - p)) nearest = stop;
+      return nearest;
+    };
+    const clampLead = (p: number) =>
+      Math.max(0, Math.min(1, Math.max(currentProgress - MAX_LEAD, Math.min(currentProgress + MAX_LEAD, p))));
 
     // Para onde a rolagem assenta quando a pessoa para de rolar
     const calculateSnapTarget = (p: number, dir: number) => {
-      const stops = spiralStops();
-      const first = stops[0];
-      const last = stops[stops.length - 1];
+      const phones = phoneStops();
+      const spiral = spiralStops();
+      const firstSpiral = spiral[0];
+      const lastSpiral = spiral[spiral.length - 1];
       // Ato 00 — Matriz / Polaroids: platô 0.00
       if (p < 0.18) {
-        if (dir > 0 && p > 0.10) return PHONE_PLATEAU;
+        if (dir > 0 && p > 0.10) return phones[0];
         return 0.00;
       }
-      // Ato 01 — Digital / 4 celulares: platô 0.35
-      if (p < first - 0.025) {
-        if (dir > 0 && p > 0.40) return first;
-        if (dir < 0 && p < 0.26) return 0.00;
-        return PHONE_PLATEAU;
+      // Ato 01 — Digital: a rolagem gira o círculo e assenta no site mais próximo
+      if (p < firstSpiral - 0.025) {
+        if (dir > 0 && p > phones[phones.length - 1] + 0.015) return firstSpiral;
+        if (dir < 0 && p < phones[0] - 0.03) return 0.00;
+        return nearestOf(phones, p);
       }
       // Ato 02 — Espiral: assenta na lâmina mais próxima (não volta para o meio)
-      if (p <= last + 0.015) {
-        if (dir < 0 && p < first - 0.01) return PHONE_PLATEAU;
-        let nearest = first;
-        for (const stop of stops) if (Math.abs(stop - p) < Math.abs(nearest - p)) nearest = stop;
-        return nearest;
+      if (p <= lastSpiral + 0.015) {
+        if (dir < 0 && p < firstSpiral - 0.01) return phones[phones.length - 1];
+        return nearestOf(spiral, p);
       }
       // Ato 03 — Contato / browsers: platô 0.90
-      if (dir < 0 && p < 0.80) return last;
+      if (dir < 0 && p < 0.80) return lastSpiral;
       return CONTACT_PLATEAU;
-    };
-
-    // Celulares (platô 0.35): cada gesto de rodinha/trackpad/toque troca no máximo um site.
-    // O gesto que chega de outro ato só assenta nos celulares; no último site, um gesto novo segue a narrativa.
-    let phoneGestureLocked = false;
-    let phoneGestureFromOutside = false;
-    let phoneAccum = 0;
-    const consumePhoneGesture = (delta: number, newGesture: boolean, threshold: number) => {
-      if (newGesture) {
-        phoneGestureLocked = false;
-        phoneGestureFromOutside = false;
-        phoneAccum = 0;
-      }
-      if (Math.abs(targetProgress - PHONE_PLATEAU) >= 0.03) {
-        phoneGestureFromOutside = true;
-        return false;
-      }
-      if (phoneGestureFromOutside) phoneGestureLocked = true;
-
-      const dir = delta > 0 ? 1 : -1;
-      if (Math.sign(phoneAccum) !== dir) phoneAccum = 0;
-      const busy = phoneGestureLocked;
-      const site = app.getCurrentSiteIndex ? app.getCurrentSiteIndex() : (app.activeSiteIndex ?? 0);
-      const total = app.phonesList?.length ?? 4;
-      const canMove = dir > 0 ? site < total - 1 : site > 0;
-      if (!busy && !canMove) return false;
-
-      if (!busy) {
-        phoneAccum += delta;
-        if (Math.abs(phoneAccum) >= threshold) {
-          phoneAccum = 0;
-          phoneGestureLocked = true;
-          app.showSite?.(dir);
-        }
-      }
-      targetProgress = PHONE_PLATEAU;
-      return true;
     };
 
     const scheduleSnap = () => {
@@ -160,7 +134,7 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         const state = { p: targetProgress };
         snapTween = gsap.to(state, {
           p: destination,
-          // ajuste curto (lâmina vizinha) é rápido; troca de ato acelera e freia suave
+          // ajuste curto (site ou lâmina vizinha) é rápido; troca de ato acelera e freia suave
           duration: Math.min(1.4, 0.3 + Math.abs(destination - targetProgress) * 6),
           ease: Math.abs(destination - targetProgress) > 0.05 ? 'power2.inOut' : 'power2.out',
           onUpdate: () => {
@@ -184,6 +158,24 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         app.masterTimeline.progress(targetProgress);
       }
     };
+
+    // Desliza a narrativa até um ponto (troca de site pelo teclado). A rolagem manual cancela.
+    app.glideTo = (p: number, duration = 0.8) => new Promise<boolean>((resolve) => {
+      app.navTween?.kill();
+      const state = { p: currentProgress };
+      const tween = gsap.to(state, {
+        p: Math.max(0, Math.min(1, p)),
+        duration: reducedMotion.matches ? 0 : duration,
+        ease: 'power2.inOut',
+        onUpdate: () => app.setProgress?.(state.p),
+        onComplete: () => {
+          if (app.navTween === tween) app.navTween = null;
+          resolve(true);
+        },
+        onInterrupt: () => resolve(false)
+      });
+      app.navTween = tween;
+    });
 
     const startPortfolio = () => {
       if (hasTriggered || app.isTransitioning) return;
@@ -242,17 +234,27 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     };
 
     const handleWheel = (e: WheelEvent) => {
+      const now = performance.now();
+      const newGesture = now - lastWheelAt > 250;
+      lastWheelAt = now;
+
       if (document.body.classList.contains('is-teaser')) {
         if (e.deltaY > 2) {
           startPortfolio();
+          revealGestureActive = true;
         }
         return;
       }
 
+      // O resto do giro que revelou o site só acelera a abertura das Polaroids
+      if (revealGestureActive && !newGesture) {
+        if (app.teaserTimeline?.isActive()) app.teaserTimeline.timeScale(3.0);
+        return;
+      }
+      revealGestureActive = false;
+
       if (app.isTransitioning) {
-        if (app.teaserTimeline?.isActive()) {
-          app.teaserTimeline.timeScale(3.0);
-        }
+        if (app.teaserTimeline?.isActive()) app.teaserTimeline.timeScale(3.0);
         return;
       }
 
@@ -262,36 +264,29 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         snapTween = null;
       }
 
-      // Se estiver no topo absoluto (Ato 00) e rolar para cima, retorna ao teaser
-      if (targetProgress <= 0.001 && currentProgress <= 0.015 && e.deltaY < -12) {
+      // Voltar para a tela preta: só num gesto novo para cima, já parado no topo
+      if (newGesture && targetProgress <= 0.001 && currentProgress <= 0.004 && e.deltaY < -12) {
         returnToTeaser();
         return;
       }
 
       cancelNavTween();
-
       lastScrollDelta = e.deltaY;
-
-      // Nos celulares (Ato 01) a rodinha/trackpad folheia os 4 sites antes de seguir para a espiral
-      const now = performance.now();
-      const newGesture = now - lastWheelAt > 200;
-      lastWheelAt = now;
-      if (consumePhoneGesture(e.deltaY, newGesture, 60)) {
-        scheduleSnap();
-        return;
-      }
-
-      targetProgress += Math.max(-120, Math.min(120, e.deltaY)) * SCROLL_FACTOR * scrollSpeedAt(targetProgress);
-      targetProgress = Math.max(0.0, Math.min(1.0, targetProgress));
-
+      targetProgress = clampLead(
+        targetProgress + Math.max(-120, Math.min(120, e.deltaY)) * SCROLL_FACTOR * scrollSpeedAt(targetProgress)
+      );
       scheduleSnap();
     };
 
     let touchStartY = 0;
-    let touchGestureStart = false;
+    let touchStartedAtTop = false;
+    let touchRevealGesture = false;
+    let touchPull = 0;
     const handleTouchStart = (e: TouchEvent) => {
       touchStartY = e.touches[0].clientY;
-      touchGestureStart = true;
+      touchStartedAtTop = targetProgress <= 0.001 && currentProgress <= 0.004;
+      touchRevealGesture = false;
+      touchPull = 0;
       if (snapTween) {
         snapTween.kill();
         snapTween = null;
@@ -299,18 +294,20 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      const y = e.touches[0].clientY;
       if (document.body.classList.contains('is-teaser')) {
-        if (touchStartY - e.touches[0].clientY > 2) {
+        if (touchStartY - y > 2) {
           startPortfolio();
-          touchStartY = e.touches[0].clientY;
+          touchRevealGesture = true;
+          touchStartY = y;
         }
         return;
       }
 
-      if (app.isTransitioning) {
-        if (app.teaserTimeline?.isActive()) {
-          app.teaserTimeline.timeScale(3.0);
-        }
+      // O mesmo toque que revelou o site (ou a abertura em andamento) não move a narrativa
+      if (touchRevealGesture || app.isTransitioning) {
+        if (app.teaserTimeline?.isActive()) app.teaserTimeline.timeScale(3.0);
+        touchStartY = y;
         return;
       }
 
@@ -320,25 +317,18 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       }
       cancelNavTween();
 
-      const deltaY = touchStartY - e.touches[0].clientY;
-      touchStartY = e.touches[0].clientY;
+      const deltaY = touchStartY - y;
+      touchStartY = y;
       lastScrollDelta = deltaY;
 
-      if (targetProgress <= 0.001 && currentProgress <= 0.015 && deltaY < -18) {
-        returnToTeaser();
+      // Puxar para baixo num toque que começou parado no topo volta para a tela preta
+      if (touchStartedAtTop && deltaY < 0) {
+        touchPull -= deltaY;
+        if (touchPull > 60) returnToTeaser();
         return;
       }
 
-      const newTouchGesture = touchGestureStart;
-      touchGestureStart = false;
-      if (consumePhoneGesture(deltaY, newTouchGesture, 40)) {
-        scheduleSnap();
-        return;
-      }
-
-      targetProgress += deltaY * SCROLL_FACTOR * scrollSpeedAt(targetProgress);
-      targetProgress = Math.max(0.0, Math.min(1.0, targetProgress));
-
+      targetProgress = clampLead(targetProgress + deltaY * SCROLL_FACTOR * scrollSpeedAt(targetProgress));
       scheduleSnap();
     };
 

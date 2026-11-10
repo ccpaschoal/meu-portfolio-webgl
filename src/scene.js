@@ -901,37 +901,16 @@ export class PortfolioScene {
     }
   }
 
-  // Gira o carrossel um site. Se já estiver girando, encadeia a partir do destino atual
-  // (cliques rápidos avançam um site cada, sem serem ignorados).
+  // Troca de site pelo teclado: desliza a narrativa até a parada do site vizinho
+  // (quem gira o círculo é a rolagem). Para no primeiro e no último site.
   showSite(direction) {
-    const total = sitesData.length;
-    const step = (Math.PI * 2) / total;
-    const moving = this.siteTransition?.isActive();
-    const fromAngle = moving ? this.siteTargetAngle : this.carouselState.angle;
-    const fromIdx = moving ? this.siteTargetIndex : this.activeSiteIndex;
-    const targetAngle = fromAngle - direction * step;
-    const nextIdx = (fromIdx + direction + total) % total;
-    this.siteTargetAngle = targetAngle;
-    this.siteTargetIndex = nextIdx;
-    this.siteTransition?.kill();
-
-    return new Promise(resolve => {
-      this.siteTransition = gsap.to(this.carouselState, {
-        angle: targetAngle,
-        duration: this.reducedMotion.matches ? 0 : 0.8,
-        ease: 'sine.inOut',
-        onUpdate: () => {
-          this.updateMockupCarouselPositions(this.carouselState.angle);
-        },
-        onInterrupt: () => resolve(false),
-        onComplete: () => {
-          this.activeSiteIndex = nextIdx;
-          this.updateMockupCarouselPositions(targetAngle);
-          this.onSiteChange?.(sitesData[nextIdx], nextIdx, sitesData.length);
-          resolve(true);
-        }
-      });
-    });
+    if (!this.phoneStops || !this.glideTo) return Promise.resolve(false);
+    const gliding = this.navTween?.isActive?.();
+    const from = gliding && this.siteTargetIndex != null ? this.siteTargetIndex : this.activeSiteIndex;
+    const next = THREE.MathUtils.clamp(from + direction, 0, this.phoneStops.length - 1);
+    if (next === from) return Promise.resolve(false);
+    this.siteTargetIndex = next;
+    return this.glideTo(this.phoneStops[next], 0.8);
   }
 
   nextPhoneSite() {
@@ -942,9 +921,9 @@ export class PortfolioScene {
     return this.showSite(-1);
   }
 
-  // Site de destino (durante o giro) ou o site da frente
+  // Site que está de frente no círculo
   getCurrentSiteIndex() {
-    return this.siteTransition?.isActive() ? this.siteTargetIndex : this.activeSiteIndex;
+    return this.activeSiteIndex;
   }
 
   /* ==========================================================================
@@ -1361,6 +1340,17 @@ export class PortfolioScene {
     this.masterTimeline.fromTo(this, { phoneTravel: 0 }, {
       phoneTravel: 1, duration: 6.5, ease: 'none', immediateRender: false, onUpdate: placePhones
     }, 21.5);
+    // Platô (28s -> 42s): a rolagem gira o círculo; cada site fica de frente numa parada
+    // (29s, 33s, 37s, 41s), com um respiro parado em volta de cada uma
+    const siteStep = (Math.PI * 2) / sitesData.length;
+    const phoneStopTimes = sitesData.map((_, i) => 29 + i * 4);
+    this.phoneStops = phoneStopTimes.map(t => t / 100);
+    for (let i = 1; i < phoneStopTimes.length; i++) {
+      this.masterTimeline.fromTo(this.carouselState, { angle: -(i - 1) * siteStep }, {
+        angle: -i * siteStep, duration: 2.4, ease: 'sine.inOut', immediateRender: false, onUpdate: placePhones
+      }, phoneStopTimes[i - 1] + 0.8);
+    }
+
     this.masterTimeline.fromTo(this.phoneOpaqueMaterials,
       { opacity: 0 },
       { opacity: 1, duration: 1.6, ease: 'power1.out', immediateRender: false }, 21.5);
@@ -1765,7 +1755,6 @@ export class PortfolioScene {
     }
     if (this.masterTimeline) this.masterTimeline.kill();
     if (this.teaserTimeline) this.teaserTimeline.kill();
-    if (this.siteTransition) this.siteTransition.kill();
     this.unbindEvents();
 
     this.scene.traverse((obj) => {

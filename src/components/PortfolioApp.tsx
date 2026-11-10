@@ -61,11 +61,12 @@ export const PortfolioApp: React.FC = () => {
       handleEnter();
     }
 
-    // Ato 02 começa na primeira lâmina da espiral (o snap da rolagem usa as mesmas paradas)
+    // Atos 01 e 02 começam no primeiro site / primeira lâmina (as mesmas paradas do snap da rolagem)
+    const phoneStart = app.phoneStops?.[0] ?? 0.29;
     const spiralStart = app.spiralStops?.[0] ?? 0.49;
-    const destinations = [0.00, 0.35, spiralStart, 0.90];
+    const destinations = [0.00, phoneStart, spiralStart, 0.90];
     const destination = destinations[chapter];
-    const assemblyStarts = [0.04, 0.235, spiralStart - 0.05, 0.82];
+    const assemblyStarts = [0.04, phoneStart - 0.06, spiralStart - 0.05, 0.82];
     const startProgress = assemblyStarts[chapter];
 
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');

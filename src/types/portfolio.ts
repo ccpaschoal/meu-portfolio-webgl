@@ -77,9 +77,13 @@ export interface PortfolioSceneInstance {
   setProgress?: (p: number) => void;
   /** Progresso (0–1) em que cada lâmina da espiral fica de frente */
   spiralStops?: number[];
+  /** Progresso (0–1) em que cada site fica de frente no círculo de celulares */
+  phoneStops?: number[];
+  /** Desliza a narrativa até um progresso (resolve true ao chegar, false se a rolagem interromper) */
+  glideTo?: (p: number, duration?: number) => Promise<boolean>;
   phonesList?: THREE.Object3D[];
   /** Animação de navegação do tracker/teclado (a rolagem manual a cancela) */
-  navTween?: gsap.core.Timeline | null;
+  navTween?: gsap.core.Animation | null;
   dispose: () => void;
 }
 

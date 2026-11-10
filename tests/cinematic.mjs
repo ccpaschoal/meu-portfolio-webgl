@@ -203,9 +203,11 @@ try {
   const engineeringStatus = await page.evaluate(() => {
     const app = window.portfolioApp;
     const clickables = app.clickableObjects;
+    app.masterTimeline.time(app.phoneStops[2] * 100); // parada do 3º site
     return {
       phoneCount: app.phonesList.length,
-      centerPhoneX: app.phonesList[0]?.userData?.targetPos?.x,
+      frontSite: app.activeSiteIndex,
+      centerPhoneX: app.phonesList[app.activeSiteIndex]?.userData?.targetPos?.x,
       spiralCount: app.spiralSlides.length,
       browserCount: app.browserMockups.length,
       browserUrls: app.browserMockups.map(b => b.userData.url),
@@ -214,6 +216,7 @@ try {
     };
   });
   assert.equal(engineeringStatus.phoneCount, 4, 'Carrossel 3D deve conter os 4 mockups dos sites');
+  assert.equal(engineeringStatus.frontSite, 2, 'Na parada do 3º site, ele fica de frente');
   assert.ok(Math.abs(engineeringStatus.centerPhoneX) < 0.01, 'Mockup frontal central em X = 0');
   assert.equal(engineeringStatus.spiralCount, 20, 'Espiral deve conter as 20 lâminas dos carrosséis');
   assert.equal(engineeringStatus.browserCount, 4, 'Contato deve ter 4 browsers');
@@ -295,6 +298,7 @@ try {
 
   const siteChange = await page.evaluate(async () => {
     const app = window.portfolioApp;
+    app.setProgress(app.phoneStops[0]); // começa no 1º site
     const frontUrl = () => app.phonesList[app.activeSiteIndex].userData.url;
     const firstPhoneUrl = app.phonesList[0].userData.url;
     const before = frontUrl();
@@ -315,7 +319,8 @@ try {
 
   const clickAt = (time, pick) => page.evaluate(({ time, pick }) => {
     const app = window.portfolioApp;
-    app.masterTimeline.time(time);
+    // celular: parada do site que está na frente; browser: o tempo pedido
+    app.masterTimeline.time(pick === 'phone' ? app.phoneStops[app.activeSiteIndex] * 100 : time);
     app.scene.updateMatrixWorld(true);
     const target = pick === 'phone'
       ? (app.phonesList[app.activeSiteIndex] || app.phonesList[0])
@@ -339,24 +344,27 @@ try {
   assert.equal(browserClick.clicked, true, 'Browser do GitHub deve responder ao clique');
   assert.equal(browserClick.opened?.[0], 'https://github.com/ccpaschoal', 'Clique deve abrir o GitHub');
 
-  // Rodinha nos celulares: um gesto troca um site; eventos do mesmo gesto não avançam a narrativa
-  console.log('-> Testando gestos da rodinha nos celulares e assentamento da espiral...');
-  await page.evaluate(() => window.portfolioApp.setProgress(0.35));
+  // Celulares guiados pela rolagem: um clique da rodinha leva ao próximo site; um giro forte atravessa
+  console.log('-> Testando celulares guiados pela rolagem e assentamento da espiral...');
+  const phoneStops = await page.evaluate(() => window.portfolioApp.phoneStops);
+  assert.equal(phoneStops.length, 4, 'Cada site precisa de um ponto de parada');
+  await page.evaluate((p) => window.portfolioApp.setProgress(p), phoneStops[0]);
   await page.waitForTimeout(400);
-  const siteNow = () => page.evaluate(() => window.portfolioApp.getCurrentSiteIndex());
-  const siteStart = await siteNow();
   await page.mouse.wheel(0, 100);
-  await page.waitForTimeout(40);
-  await page.mouse.wheel(0, 100);
-  await page.waitForTimeout(300);
-  const siteAfterOneGesture = await siteNow();
-  await page.mouse.wheel(0, 100);
-  await page.waitForTimeout(300);
-  const siteAfterTwoGestures = await siteNow();
-  const phoneProgress = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
-  assert.equal(siteAfterOneGesture, (siteStart + 1) % 4, 'Um gesto de rodinha deve trocar exatamente um site');
-  assert.equal(siteAfterTwoGestures, (siteStart + 2) % 4, 'Um segundo gesto deve trocar mais um site');
-  assert.ok(Math.abs(phoneProgress - 0.35) < 0.005, 'Trocar sites não deve mover a narrativa');
+  await page.waitForTimeout(1700);
+  const afterNotch = await page.evaluate(() => ({
+    site: window.portfolioApp.activeSiteIndex,
+    p: window.portfolioApp.masterTimeline.progress()
+  }));
+  assert.equal(afterNotch.site, 1, 'Um clique da rodinha deve levar ao próximo site');
+  assert.ok(Math.abs(afterNotch.p - phoneStops[1]) < 0.002, 'A rolagem deve assentar na parada do site');
+  for (let i = 0; i < 16; i++) {
+    await page.mouse.wheel(0, 100);
+    await page.waitForTimeout(15);
+  }
+  await page.waitForTimeout(1900);
+  const afterSpin = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
+  assert.ok(afterSpin > phoneStops[3] + 0.02, `Um giro forte deve atravessar os celulares (parou em ${afterSpin.toFixed(3)})`);
 
   // Espiral: ao parar de rolar, assenta na lâmina mais próxima (não volta para o meio do ato)
   const stops = await page.evaluate(() => window.portfolioApp.spiralStops);
@@ -370,6 +378,7 @@ try {
     `Espiral deve assentar na lâmina 6 (${stops[5].toFixed(4)}), parou em ${settled.toFixed(4)}`);
 
   await page.evaluate(() => window.portfolioApp.setProgress(0));
+  await page.waitForTimeout(300);
   await page.mouse.wheel(0, 100);
   await page.waitForTimeout(700);
   const scrollProgress = await page.evaluate(() => window.portfolioApp.masterTimeline.progress());
@@ -378,6 +387,36 @@ try {
 
   assert.equal(await page.locator('a[href="https://wa.me/5521982566564"]').count(), 1,
     'WhatsApp deve usar o número informado');
+
+  // Giro forte na tela preta: revela as Polaroids e para ali; voltar à tela preta só com gesto novo
+  console.log('-> Testando giro forte da rodinha na tela preta e no topo...');
+  const fast = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  try {
+    await fast.goto(baseURL, { waitUntil: 'networkidle' });
+    await fast.waitForFunction(() => !!window.portfolioApp?.renderer);
+    await fast.mouse.move(720, 450);
+    for (let i = 0; i < 20; i++) { await fast.mouse.wheel(0, 100); await fast.waitForTimeout(15); }
+    await fast.waitForTimeout(2200);
+    const revealed = await fast.evaluate(() => ({
+      teaser: document.body.classList.contains('is-teaser'),
+      p: window.portfolioApp.masterTimeline.progress()
+    }));
+    assert.equal(revealed.teaser, false, 'Giro na tela preta deve abrir o site');
+    assert.ok(revealed.p < 0.01, `O mesmo giro não deve atravessar as Polaroids (parou em ${revealed.p.toFixed(3)})`);
+    for (let i = 0; i < 3; i++) { await fast.mouse.wheel(0, 100); await fast.waitForTimeout(40); }
+    await fast.waitForTimeout(300);
+    for (let i = 0; i < 12; i++) { await fast.mouse.wheel(0, -100); await fast.waitForTimeout(15); }
+    await fast.waitForTimeout(1200);
+    assert.equal(await fast.evaluate(() => document.body.classList.contains('is-teaser')), false,
+      'Subir rápido até o topo não deve voltar sozinho para a tela preta');
+    await fast.waitForTimeout(400);
+    await fast.mouse.wheel(0, -100);
+    await fast.waitForTimeout(1500);
+    assert.equal(await fast.evaluate(() => document.body.classList.contains('is-teaser')), true,
+      'Um gesto novo para cima, parado no topo, volta para a tela preta');
+  } finally {
+    await fast.close();
+  }
 
   const mobile = await browser.newPage({
     viewport: { width: 390, height: 844 },
