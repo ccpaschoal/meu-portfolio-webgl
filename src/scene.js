@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { sitesData } from './data/sites.js';
+import { getAssetUrl } from './utils/assets.js';
 
 /**
  * PORTFÓLIO WEBGL NATIVO — CAMILLA PASCHOAL
@@ -379,7 +380,7 @@ export class PortfolioScene {
     const centerShadow = new THREE.Mesh(shadowGeo, shadowMat);
     centerShadow.position.set(0, -12, -2.5);
     const centerFrame = new THREE.Mesh(frameGeo, frameMat);
-    const photoTex = new THREE.TextureLoader().load('/avatar-real.jpg');
+    const photoTex = new THREE.TextureLoader().load(getAssetUrl('avatar-real.jpg'));
     photoTex.colorSpace = THREE.SRGBColorSpace;
     const centerInner = new THREE.Mesh(innerGeo, new THREE.MeshBasicMaterial({
       map: photoTex,
@@ -469,12 +470,12 @@ export class PortfolioScene {
 
     // 6 lâminas contínuas da Apresentação (Aura removido conforme solicitação)
     const slidePaths = [
-      '/assets/carrosseis/0-apresentacao/1.webp',
-      '/assets/carrosseis/0-apresentacao/2.webp',
-      '/assets/carrosseis/0-apresentacao/3.webp',
-      '/assets/carrosseis/0-apresentacao/4.webp',
-      '/assets/carrosseis/0-apresentacao/5.webp',
-      '/assets/carrosseis/0-apresentacao/6.webp'
+      getAssetUrl('assets/carrosseis/0-apresentacao/1.webp'),
+      getAssetUrl('assets/carrosseis/0-apresentacao/2.webp'),
+      getAssetUrl('assets/carrosseis/0-apresentacao/3.webp'),
+      getAssetUrl('assets/carrosseis/0-apresentacao/4.webp'),
+      getAssetUrl('assets/carrosseis/0-apresentacao/5.webp'),
+      getAssetUrl('assets/carrosseis/0-apresentacao/6.webp')
     ];
 
     // Dimensões editoriais: Fotograma 176x220 (proporção 4:5 matemática exata: 220 * 0.8 = 176)
@@ -672,7 +673,7 @@ export class PortfolioScene {
           this.drawSiteSlide(index, index, 0, 1);
         }
       };
-      image.src = site.image || site.thumb;
+      image.src = getAssetUrl(site.image || site.thumb);
       return image;
     });
 
