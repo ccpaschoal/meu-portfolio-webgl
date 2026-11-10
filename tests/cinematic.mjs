@@ -102,7 +102,7 @@ try {
   // TESTE 4: Disparo do Teaser e Abertura em Leque do Tríptico
   console.log('-> Testando Disparo do Teaser e abertura em leque...');
   await page.locator('#intro-teaser').click();
-  await page.waitForTimeout(1400);
+  await page.waitForTimeout(2700);
 
   const teaserTriggered = await page.evaluate(() => {
     const app = window.portfolioApp;
@@ -418,7 +418,7 @@ try {
       'Subir rápido até o topo não deve voltar sozinho para a tela preta');
     await fast.waitForTimeout(400);
     await fast.mouse.wheel(0, -100);
-    await fast.waitForTimeout(1500);
+    await fast.waitForTimeout(2600);
     assert.equal(await fast.evaluate(() => document.body.classList.contains('is-teaser')), true,
       'Um gesto novo para cima, parado no topo, volta para a tela preta');
   } finally {

@@ -310,17 +310,12 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
         return;
       }
 
-      // O resto do giro que revelou o site só acelera a abertura das Polaroids
-      if (revealGestureActive && !newGesture) {
-        if (app.teaserTimeline?.isActive()) app.teaserTimeline.timeScale(3.0);
-        return;
-      }
+      // O resto do giro que revelou o site não interfere na chegada das Polaroids
+      if (revealGestureActive && !newGesture) return;
       revealGestureActive = false;
 
-      if (app.isTransitioning) {
-        if (app.teaserTimeline?.isActive()) app.teaserTimeline.timeScale(3.0);
-        return;
-      }
+      // Chegada/volta das Polaroids tocando no próprio ritmo
+      if (app.isTransitioning) return;
 
       const dir = e.deltaY > 0 ? 1 : -1;
       // Passagem entre atos tocando: o resto do gesto (ou um gesto novo no mesmo sentido) só a acompanha
@@ -386,7 +381,6 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
       // O mesmo toque que revelou o site (ou a abertura em andamento) não move a narrativa
       if (touchRevealGesture || app.isTransitioning) {
-        if (app.teaserTimeline?.isActive()) app.teaserTimeline.timeScale(3.0);
         touchStartY = y;
         return;
       }

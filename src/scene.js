@@ -125,6 +125,7 @@ export class PortfolioScene {
     this.buildChapter01(); // 4 Smartphones 3D em Carrossel Circular com Profundidade
     this.buildChapter02(); // Escada em Espiral 3D dos Carrosséis (Helix 3D)
     this.buildChapter03(); // Mockups de Browser Flutuando & "Adaptável. Do seu jeito."
+    this.buildRevealTimeline(); // Chegada das Polaroids saindo da tela preta
     this.updateResponsiveLayout();
 
     // 3. Master Timeline GSAP Contínua
@@ -239,8 +240,9 @@ export class PortfolioScene {
       // Fundo atmosférico profundo posicionado atrás de todos os modelos 3D
       positions[i * 3 + 2] = THREE.MathUtils.randFloat(-750, -220);
 
-      // 70% Cobalto/Prata translúcido (0.0), 30% Vinho Carmesim #991b1b (1.0)
-      colorTypes[i] = Math.random() < 0.30 ? 1.0 : 0.0;
+      // 30% vinho carmesim #991b1b (1), 45% azul cobalto (2), 25% prata (0)
+      const tone = Math.random();
+      colorTypes[i] = tone < 0.30 ? 1.0 : (tone < 0.75 ? 2.0 : 0.0);
       scales[i] = 1.0 + Math.random() * 2.0;
     }
 
@@ -330,13 +332,16 @@ export class PortfolioScene {
 
           float alpha = smoothstep(0.5, 0.08, dist);
 
-          vec3 blueBase = vec3(0.60, 0.68, 0.85);
+          // 0 = prata, 1 = vinho, 2 = azul cobalto
+          vec3 silverBase = vec3(0.60, 0.68, 0.85);
           vec3 wineBase = vec3(0.60, 0.11, 0.11);
-          vec3 baseColor = mix(blueBase, wineBase, vType);
+          vec3 blueBase = vec3(0.22, 0.45, 1.00);
+          vec3 baseColor = vType < 0.5 ? silverBase : (vType < 1.5 ? wineBase : blueBase);
 
-          vec3 blueGlow = vec3(1.3, 1.6, 2.2); // Núcleo branco elétrico/cobalto
+          vec3 silverGlow = vec3(1.3, 1.6, 2.2); // Núcleo branco elétrico
           vec3 wineGlow = vec3(2.0, 0.35, 0.35); // Borda brasa
-          vec3 glowColor = mix(blueGlow, wineGlow, vType);
+          vec3 blueGlow = vec3(0.9, 1.5, 2.8); // Cobalto elétrico
+          vec3 glowColor = vType < 0.5 ? silverGlow : (vType < 1.5 ? wineGlow : blueGlow);
 
           vec3 finalColor = mix(baseColor, glowColor, vGlow);
           float finalAlpha = mix(alpha * 0.75, alpha * 1.0, vGlow) * vDustAlpha;
@@ -524,13 +529,7 @@ export class PortfolioScene {
       material.transparent = true;
     });
 
-    // Estado inicial empilhado no rodapé profundo (evita snap de posição ao revelar o teaser)
-    this.leftPolaroid.position.set(0, -650, 0);
-    this.leftPolaroid.rotation.set(0, 0, 0.02);
-    this.rightPolaroid.position.set(0, -650, 5);
-    this.rightPolaroid.rotation.set(0, 0, -0.02);
-    this.centerPolaroid.position.set(0, -650, 15);
-    this.centerPolaroid.rotation.set(0, 0, 0.005);
+    // Posições iniciais e a chegada das Polaroids ficam em buildRevealTimeline()
 
     this.chapter00Group.add(this.leftPolaroid, this.centerPolaroid, this.rightPolaroid);
     this.updateResponsiveLayout();
@@ -1447,123 +1446,99 @@ export class PortfolioScene {
   }
 
   /* ==========================================================================
-     TRANSIÇÃO DO TEASER: SUBIDA DO MAÇO, ABERTURA EM LEQUE E POEIRA SUBINDO
+     CHEGADA DAS POLAROIDS — MESMA CINEMÁTICA DOS OUTROS ATOS
+     Cada polaroid sobe de baixo num arco leve, uma depois da outra (esquerda, direita e, por
+     último, a foto do centro), e freia bem antes de encaixar. A poeira sobe junto e some.
+     A volta para a tela preta toca o mesmo caminho ao contrário.
      ========================================================================== */
+  buildRevealTimeline() {
+    const specs = [
+      { obj: this.leftPolaroid, from: { x: -140, y: -760, z: -80, ry: 0.3, rz: -0.22 }, to: { x: -395, y: -12, z: -15, ry: 0.12, rz: -0.09 } },
+      { obj: this.rightPolaroid, from: { x: 140, y: -760, z: -80, ry: -0.3, rz: 0.22 }, to: { x: 395, y: -12, z: -15, ry: -0.12, rz: 0.09 } },
+      { obj: this.centerPolaroid, from: { x: 0, y: -800, z: -40, ry: 0, rz: 0.1 }, to: { x: 0, y: 12, z: 35, ry: 0, rz: 0.005 } }
+    ];
+    // Estado inicial = começo da chegada (fora da tela, abaixo)
+    specs.forEach(({ obj, from }) => {
+      obj.position.set(from.x, from.y, from.z);
+      obj.rotation.set(0, from.ry, from.rz);
+    });
+
+    const tl = gsap.timeline({
+      paused: true,
+      onComplete: () => this.onRevealComplete(),
+      onReverseComplete: () => this.onHideComplete()
+    });
+    specs.forEach(({ obj, from, to }, i) => {
+      const at = i * 0.32;
+      // x e y com curvas diferentes desenham um arco: sobe primeiro e abre para o lado depois
+      tl.fromTo(obj.position, { x: from.x }, { x: to.x, duration: 1.7, ease: 'power2.out', immediateRender: false }, at);
+      tl.fromTo(obj.position, { y: from.y, z: from.z }, { y: to.y, z: to.z, duration: 1.7, ease: 'power3.out', immediateRender: false }, at);
+      tl.fromTo(obj.rotation, { y: from.ry, z: from.rz }, { y: to.ry, z: to.rz, duration: 1.7, ease: 'power3.out', immediateRender: false }, at);
+    });
+    if (this.dustMaterial) {
+      // uWind 1.2 zera a vida de todas as partículas no shader (vida = 1 - uWind·[0.85..1.30])
+      const uniforms = this.dustMaterial.uniforms;
+      tl.fromTo(uniforms.uWind, { value: 0 }, { value: 1.2, duration: 1.8, ease: 'sine.in', immediateRender: false }, 0);
+      tl.fromTo(uniforms.uOpacity, { value: 1 }, { value: 0, duration: 1.5, ease: 'sine.inOut', immediateRender: false }, 0.25);
+    }
+    this.revealTimeline = tl;
+    this.teaserTimeline = tl; // nome antigo, usado para saber se a passagem está tocando
+  }
+
+  // Abre o site: as Polaroids chegam com calma (a rolagem não acelera mais esta passagem)
   triggerTeaserReveal() {
     if (this.currentChapter >= 0 || this.isTransitioning) return;
     this.isTransitioning = true;
     this.currentChapter = 0;
-
-    // Estado inicial: empilhadas em maço no rodapé profundo sem solavancos
-    this.leftPolaroid.position.set(0, -650, 0);
-    this.leftPolaroid.rotation.set(0, 0, 0.02);
-    this.rightPolaroid.position.set(0, -650, 5);
-    this.rightPolaroid.rotation.set(0, 0, -0.02);
-    this.centerPolaroid.position.set(0, -650, 15);
-    this.centerPolaroid.rotation.set(0, 0, 0.005);
-
     this.chapter00Group.rotation.set(0, 0, 0);
     this.chapter00Group.visible = true;
+    if (this.dustParticles) this.dustParticles.visible = true;
 
-    if (this.teaserTimeline) this.teaserTimeline.kill();
-    this.teaserTimeline = gsap.timeline({
-      onComplete: () => {
-        this.currentChapter = 0;
-        this.isTransitioning = false;
-        if (this.masterTimeline) {
-          this.masterTimeline.pause();
-          this.masterTimeline.progress(0);
-        }
-        this.loadSpiralTextures();
-      }
-    });
-
-    const tl = this.teaserTimeline;
-
-    // Subida suave e contínua surgindo da esquerda para a direita (stagger orgânico)
-    tl.to(this.leftPolaroid.position, { y: -12, z: -15, duration: 1.15, ease: 'power2.out' }, 0);
-    tl.to(this.centerPolaroid.position, { y: 12, z: 35, duration: 1.15, ease: 'power2.out' }, 0.08);
-    tl.to(this.rightPolaroid.position, { y: -12, z: -15, duration: 1.15, ease: 'power2.out' }, 0.16);
-
-    // Desdobramento em leque
-    tl.to(this.leftPolaroid.position, { x: -395, duration: 0.90, ease: 'power2.out' }, 0.20);
-    tl.to(this.leftPolaroid.rotation, { z: -0.09, y: 0.12, duration: 0.90, ease: 'power2.out' }, 0.20);
-    tl.to(this.centerPolaroid.rotation, { z: 0.005, y: 0.0, duration: 0.90, ease: 'power2.out' }, 0.28);
-    tl.to(this.rightPolaroid.position, { x: 395, duration: 0.90, ease: 'power2.out' }, 0.36);
-    tl.to(this.rightPolaroid.rotation, { z: 0.09, y: -0.12, duration: 0.90, ease: 'power2.out' }, 0.36);
-
-    // Poeira: o vento a sopra para cima sobre as Polaroids, ela some e é desligada
-    if (this.dustParticles && this.dustMaterial) {
-      const uniforms = this.dustMaterial.uniforms;
-      this.dustParticles.visible = true;
-      // uWind 1.2 zera a vida de todas as partículas no shader (vida = 1 - uWind·[0.85..1.30])
-      // Mesma duração do leque (~1.3s) para não segurar a rolagem
-      tl.fromTo(uniforms.uWind, { value: 0.0 }, { value: 1.2, duration: 1.3, ease: 'power2.in' }, 0);
-      tl.to(uniforms.uOpacity, { value: 0.0, duration: 1.05, ease: 'power2.out' }, 0.2);
-      tl.call(() => {
-        if (this.dustParticles) this.dustParticles.visible = false;
-      }, null, 1.3);
+    if (this.reducedMotion.matches) {
+      this.revealTimeline.pause().progress(1, true);
+      this.onRevealComplete();
+      return;
     }
-
-    if (this.reducedMotion.matches) tl.progress(1);
+    this.revealTimeline.timeScale(1).play(0);
   }
 
+  onRevealComplete() {
+    this.currentChapter = 0;
+    this.isTransitioning = false;
+    if (this.masterTimeline) {
+      this.masterTimeline.pause();
+      this.masterTimeline.progress(0);
+    }
+    if (this.dustParticles) this.dustParticles.visible = false;
+    this.loadSpiralTextures();
+  }
 
   /* ==========================================================================
-     RETORNO AO PRÓLOGO / TELA PRETA (TEASER) AO VOLTAR A ROLAGEM
+     RETORNO À TELA PRETA: O MESMO CAMINHO DA CHEGADA, AO CONTRÁRIO
      ========================================================================== */
   hideToTeaser(onComplete) {
     if (this.isTransitioning) return;
     this.isTransitioning = true;
-
-    if (this.teaserTimeline?.isActive()) {
-      this.teaserTimeline.kill();
-    }
-
-    this.teaserTimeline = gsap.timeline({
-      onComplete: () => {
-        this.chapter00Group.visible = false;
-        this.currentChapter = -1;
-        this.isTransitioning = false;
-        if (this.masterTimeline) {
-          this.masterTimeline.pause(0);
-        }
-        if (onComplete) onComplete();
-      }
-    });
-
-    const tl = this.teaserTimeline;
-
-    // 1. Fecha o leque para o centro (direita primeiro, depois centro, depois esquerda)
-    tl.to(this.rightPolaroid.position, { x: 0, duration: 0.55, ease: 'power2.in' }, 0);
-    tl.to(this.rightPolaroid.rotation, { z: -0.02, y: 0, duration: 0.55, ease: 'power2.in' }, 0);
-
-    tl.to(this.centerPolaroid.rotation, { z: 0.005, y: 0, duration: 0.55, ease: 'power2.in' }, 0.08);
-
-    tl.to(this.leftPolaroid.position, { x: 0, duration: 0.55, ease: 'power2.in' }, 0.16);
-    tl.to(this.leftPolaroid.rotation, { z: 0.02, y: 0, duration: 0.55, ease: 'power2.in' }, 0.16);
-
-    // 2. Desce o maço empilhado para y: -650 no rodapé profundo
-    tl.to(this.rightPolaroid.position, { y: -650, z: 5, duration: 0.65, ease: 'power2.in' }, 0.25);
-    tl.to(this.centerPolaroid.position, { y: -650, z: 15, duration: 0.65, ease: 'power2.in' }, 0.28);
-    tl.to(this.leftPolaroid.position, { y: -650, z: 0, duration: 0.65, ease: 'power2.in' }, 0.32);
-
-    // Retorno suave da poeira: vento cessa e partículas reassentam pacificamente na página preta
+    this.hideCallback = onComplete || null;
     if (this.dustParticles) this.dustParticles.visible = true;
-    if (this.dustMaterial) {
-      tl.to(this.dustMaterial.uniforms.uWind, {
-        value: 0.0,
-        duration: 0.95,
-        ease: 'power2.out'
-      }, 0.20);
-      tl.to(this.dustMaterial.uniforms.uOpacity, {
-        value: 1.0,
-        duration: 1.05,
-        ease: 'power2.out'
-      }, 0.10);
-    }
 
-    if (this.reducedMotion.matches) tl.progress(1);
+    if (this.reducedMotion.matches) {
+      this.revealTimeline.pause().progress(0, true);
+      this.onHideComplete();
+      return;
+    }
+    // A volta é um pouco mais rápida que a chegada
+    this.revealTimeline.timeScale(1.15).reverse();
+  }
+
+  onHideComplete() {
+    this.chapter00Group.visible = false;
+    this.currentChapter = -1;
+    this.isTransitioning = false;
+    if (this.masterTimeline) this.masterTimeline.pause(0);
+    const callback = this.hideCallback;
+    this.hideCallback = null;
+    if (callback) callback();
   }
 
   /* ==========================================================================
