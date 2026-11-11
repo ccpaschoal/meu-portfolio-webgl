@@ -599,7 +599,7 @@ body[data-chapter="2"]:not(.is-teaser) .site-arrow-next {
   opacity: 0.75;
   mix-blend-mode: screen;
   pointer-events: none;
-  animation: grainJitter 0.6s steps(3) infinite;
+  /* grão estático: o fundo preto não deve se mexer sozinho */
 }
 
 @keyframes grainJitter {
