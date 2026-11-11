@@ -1156,7 +1156,7 @@ export class PortfolioScene {
         headline: 'Vamos conversar?', sub: 'Orçamentos, freelas & projetos rápidos',
         cta: 'INICIAR CONVERSA ↗', accent: '#22c55e',
         url: 'https://wa.me/5521982566564',
-        pos: [-540, -46, 40], rot: [0.04, 0.24, 0.02]
+        pos: [-540, -100, 40], rot: [0.04, 0.24, 0.02]
       },
       {
         id: 'linkedin', label: 'LINKEDIN', badge: 'NETWORK',
@@ -1164,7 +1164,7 @@ export class PortfolioScene {
         headline: 'Camilla Paschoal', sub: 'Trajetória, conexões & experiências',
         cta: 'CONECTAR NO LINKEDIN ↗', accent: '#3b82f6',
         url: 'https://www.linkedin.com/in/camillapaschoal/',
-        pos: [-180, -76, 100], rot: [0.03, 0.08, 0.01]
+        pos: [-180, -130, 100], rot: [0.03, 0.08, 0.01]
       },
       {
         id: 'github', label: 'GITHUB', badge: 'REPOSITÓRIOS',
@@ -1172,7 +1172,7 @@ export class PortfolioScene {
         headline: '@ccpaschoal', sub: 'Código, WebGL, React & experimentos IA',
         cta: 'EXPLORAR CÓDIGO ↗', accent: '#a855f7',
         url: 'https://github.com/ccpaschoal',
-        pos: [180, -76, 100], rot: [0.03, -0.08, -0.01]
+        pos: [180, -130, 100], rot: [0.03, -0.08, -0.01]
       },
       {
         id: 'email', label: 'E-MAIL DIRETO', badge: 'CONTATO FORMAL',
@@ -1180,7 +1180,7 @@ export class PortfolioScene {
         headline: 'Proposta & Briefing', sub: 'camillacpaschoal@gmail.com',
         cta: 'ENVIAR E-MAIL ↗', accent: '#e11d48',
         url: 'mailto:camillacpaschoal@gmail.com',
-        pos: [540, -46, 40], rot: [0.04, -0.24, -0.02]
+        pos: [540, -100, 40], rot: [0.04, -0.24, -0.02]
       }
     ];
 
@@ -1746,7 +1746,7 @@ export class PortfolioScene {
 
     // Contato: arco de 4 browsers (≈1800 já contando a perspectiva) no desktop, grade 2×2 (≈620) em pé
     if (this.chapter03Group) {
-      this.chapter03Group.scale.setScalar(Math.min(1, (visibleWidth * 0.92) / (portrait ? 620 : 1800)));
+      this.chapter03Group.scale.setScalar(Math.min(portrait ? 1 : 1.3, (visibleWidth * 0.92) / (portrait ? 620 : 1500)));
       const grid = [[-155, 20], [155, 20], [-155, -200], [155, -200]];
       this.contactGroup?.children.forEach((slot) => {
         const arc = slot.userData.layout?.arc;
@@ -1762,7 +1762,7 @@ export class PortfolioScene {
       });
       if (this.contactTitleMesh) {
         this.contactTitleMesh.scale.setScalar(1);
-        this.contactTitleMesh.position.y = portrait ? 260 : 300;
+        this.contactTitleMesh.position.y = portrait ? 260 : 215;
       }
       if (this.drawContactTitle && this.contactTitleCompact !== portrait) {
         this.contactTitleCompact = portrait;
@@ -1863,7 +1863,7 @@ export class PortfolioScene {
     if (this.spiralSlides && this.chapter02Group?.visible) {
       const twist = this.spiralCarouselGroup.rotation.y;
       for (let i = 0; i < this.spiralSlides.length; i++) {
-        this.spiralSlides[i].visible = Math.cos(i * SPIRAL.angleStep + twist) > -0.3;
+        this.spiralSlides[i].visible = Math.cos(i * SPIRAL.angleStep + twist) > 0.25;
       }
     }
 
