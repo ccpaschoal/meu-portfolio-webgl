@@ -897,8 +897,9 @@ export class PortfolioScene {
 
       const frontFactor = (z / RADIUS_Z + 1) * 0.5;
 
-      const facingAngle = -theta;
-      const rotY = facingAngle * 0.42;
+      // A tela fica sempre voltada para a câmera: inclina até ~43° nas laterais e volta a 0° na frente
+      // e no fundo (antes o giro crescia com o ângulo e os da lateral mostravam as costas)
+      const rotY = -Math.sin(theta) * 0.75;
       const rotX = 0.03 + (1.0 - frontFactor) * 0.06;
       const rotZ = Math.sin(theta) * -0.035;
 
