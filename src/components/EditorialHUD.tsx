@@ -66,7 +66,7 @@ export const EditorialHUD: React.FC<EditorialHUDProps> = ({
         <div className="hud-brand">
           <span className="hud-title">CAMILLA PASCHOAL</span>
           <span className="hud-sep">//</span>
-          <span className="hud-role">CREATIVE DEV & DESIGN</span>
+          <span className="hud-role">CONTENT DESIGN & FRONT-END</span>
         </div>
 
         <div className="hud-meta">

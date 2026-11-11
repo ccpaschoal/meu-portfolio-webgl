@@ -416,9 +416,9 @@ export class PortfolioScene {
         ctxL.fillText('CAMILLA', 75, 335);
         ctxL.fillText('PASCHOAL', 75, 460);
         ctxL.font = '700 60px "Space Mono", monospace'; ctxL.fillStyle = '#f8fafc';
-        ctxL.fillText('SOCIAL MEDIA DESIGNER', 75, 610);
-        ctxL.fillText('WEB DEVELOPER', 75, 705);
-        ctxL.fillText('AI PRODUCT BUILDER', 75, 800);
+        ctxL.fillText('CONTENT DESIGNER', 75, 610);
+        ctxL.fillText('FRONT-END (HTML/CSS)', 75, 705);
+        ctxL.fillText('AI-ASSISTED', 75, 800);
         return;
       }
 
@@ -437,13 +437,13 @@ export class PortfolioScene {
 
       // Cargos com tamanho e contraste reforçados
       ctxL.font = '700 50px "Space Mono", monospace'; ctxL.fillStyle = '#f8fafc';
-      ctxL.fillText('SOCIAL MEDIA DESIGNER', 75, 565);
-      ctxL.fillText('WEB DEVELOPER', 75, 645);
-      ctxL.fillText('AI PRODUCT BUILDER', 75, 725);
+      ctxL.fillText('CONTENT DESIGNER', 75, 565);
+      ctxL.fillText('FRONT-END (HTML/CSS)', 75, 645);
+      ctxL.fillText('AI-ASSISTED', 75, 725);
 
       // Subtítulo de atuação
       ctxL.font = '400 36px "Inter", sans-serif'; ctxL.fillStyle = '#94a3b8';
-      ctxL.fillText('Rio de Janeiro, Brasil · Global Delivery', 75, 835);
+      ctxL.fillText('Rio de Janeiro, Brasil', 75, 835);
     };
     drawLeft();
 
@@ -493,9 +493,9 @@ export class PortfolioScene {
         ctxR.strokeStyle = 'rgba(239, 68, 68, 0.4)'; ctxR.lineWidth = 4;
         ctxR.beginPath(); ctxR.moveTo(75, 188); ctxR.lineTo(500, 188); ctxR.stroke();
         const items = [
-          ['SOCIAL MEDIA DESIGN', 'Carrosséis e direção de arte'],
-          ['WEB DEVELOPMENT', 'Sites 3D com Three.js e WebGL'],
-          ['AI PRODUCT BUILDER', 'Produtos com IA e automação']
+          ['CARROSSÉIS', 'Conteúdo visual para Instagram'],
+          ['FRONT-END', 'Páginas em HTML e CSS'],
+          ['IA NO PROCESSO', 'Prototipagem rápida com IA']
         ];
         items.forEach(([title, line], i) => {
           const y = 320 + i * 205;
@@ -517,24 +517,24 @@ export class PortfolioScene {
 
       // 1. Social Media Design
       ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
-      ctxR.fillText('SOCIAL MEDIA DESIGN', 75, 255);
+      ctxR.fillText('CARROSSÉIS', 75, 255);
       ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
-      ctxR.fillText('Carrosséis contínuos e direção de arte', 75, 305);
-      ctxR.fillText('estratégica para retenção e autoridade.', 75, 350);
+      ctxR.fillText('Conteúdo visual para Instagram em um', 75, 305);
+      ctxR.fillText('estilo colorido, organizado e claro.', 75, 350);
 
       // 2. Web Development
       ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
-      ctxR.fillText('WEB DEVELOPMENT', 75, 470);
+      ctxR.fillText('FRONT-END', 75, 470);
       ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
-      ctxR.fillText('Interfaces 3D imersivas com Three.js,', 75, 520);
-      ctxR.fillText('WebGL e arquitetura moderna veloz.', 75, 565);
+      ctxR.fillText('Páginas em HTML e CSS que', 75, 520);
+      ctxR.fillText('funcionam bem no celular.', 75, 565);
 
       // 3. AI Product Builder
       ctxR.font = '700 48px "Inter", sans-serif'; ctxR.fillStyle = '#ffffff';
-      ctxR.fillText('AI PRODUCT BUILDER', 75, 685);
+      ctxR.fillText('IA NO PROCESSO', 75, 685);
       ctxR.font = '400 38px "Inter", sans-serif'; ctxR.fillStyle = '#cbd5e1';
-      ctxR.fillText('Produtos e ecossistemas impulsionados', 75, 735);
-      ctxR.fillText('por inteligência artificial e automação.', 75, 780);
+      ctxR.fillText('Ferramentas de IA para prototipar', 75, 735);
+      ctxR.fillText('e acelerar a entrega.', 75, 780);
     };
     drawRight();
 
@@ -1126,10 +1126,10 @@ export class PortfolioScene {
       tCtx.fillStyle = '#93c5fd';
       if ('letterSpacing' in tCtx) tCtx.letterSpacing = compact ? '4px' : '6px';
       if (compact) {
-        tCtx.fillText('SOCIAL MEDIA DESIGNER  ·  WEB DEVELOPER', 1024, 345);
-        tCtx.fillText('AI PRODUCT BUILDER', 1024, 405);
+        tCtx.fillText('CONTENT DESIGNER  ·  FRONT-END (HTML/CSS)', 1024, 345);
+        tCtx.fillText('AI-ASSISTED', 1024, 405);
       } else {
-        tCtx.fillText('SOCIAL MEDIA DESIGNER  ·  WEB DEVELOPER  ·  AI PRODUCT BUILDER', 1024, 350);
+        tCtx.fillText('CONTENT DESIGNER  ·  FRONT-END (HTML/CSS)  ·  AI-ASSISTED', 1024, 350);
       }
       if ('letterSpacing' in tCtx) tCtx.letterSpacing = '0px';
       titleTex.needsUpdate = true;
