@@ -831,7 +831,7 @@ export class PortfolioScene {
         targetPos: { x: 0, y: 10, z: 330 },
         // O hover anima só um multiplicador; a escala final é baseScale × hoverBoost
         onHoverStart: () => {
-          gsap.to(mockup.userData, { hoverBoost: 1.04, duration: 0.25, ease: 'power2.out', overwrite: true, onUpdate: applyHoverScale });
+          gsap.to(mockup.userData, { hoverBoost: 1.08, duration: 0.3, ease: 'power2.out', overwrite: true, onUpdate: applyHoverScale });
         },
         onHoverEnd: () => {
           gsap.to(mockup.userData, { hoverBoost: 1, duration: 0.25, ease: 'power2.out', overwrite: true, onUpdate: applyHoverScale });
@@ -1273,12 +1273,12 @@ export class PortfolioScene {
       ctx.fillText(item.badge, 88, 167);
 
       // Título e subtítulo
-      ctx.font = '800 64px "Inter", sans-serif';
+      ctx.font = '800 76px "Inter", sans-serif';
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(item.headline, 64, 300);
-      ctx.font = '400 32px "Inter", sans-serif';
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillText(item.sub, 64, 366);
+      ctx.fillText(item.headline, 64, 310);
+      ctx.font = '500 38px "Inter", sans-serif';
+      ctx.fillStyle = '#dbe4ee';
+      ctx.fillText(item.sub, 64, 382);
 
       // Botão CTA
       ctx.beginPath();
@@ -1288,9 +1288,9 @@ export class PortfolioScene {
       ctx.strokeStyle = item.accent;
       ctx.lineWidth = 3;
       ctx.stroke();
-      ctx.font = '700 28px "Inter", sans-serif';
+      ctx.font = '700 32px "Inter", sans-serif';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(item.cta, 100, 572);
+      ctx.fillText(item.cta, 100, 574);
     };
 
     contacts.forEach((item) => {
@@ -1359,12 +1359,14 @@ export class PortfolioScene {
         baseY: 0,
         baseZ: 0,
         onHoverStart: () => {
-          gsap.to(browserGroup.scale, { x: 1.06, y: 1.06, z: 1.06, duration: 0.25, ease: 'power2.out' });
+          gsap.to(browserGroup.scale, { x: 1.09, y: 1.09, z: 1.09, duration: 0.3, ease: 'power2.out' });
+          gsap.to(browserGroup.position, { z: 38, duration: 0.3, ease: 'power2.out' });
           gsap.to(borderMat.color, { r: 1, g: 1, b: 1, duration: 0.25 });
         },
         onHoverEnd: () => {
           const c = new THREE.Color(item.accent);
-          gsap.to(browserGroup.scale, { x: 1, y: 1, z: 1, duration: 0.25, ease: 'power2.out' });
+          gsap.to(browserGroup.scale, { x: 1, y: 1, z: 1, duration: 0.35, ease: 'power2.out' });
+          gsap.to(browserGroup.position, { z: 0, duration: 0.35, ease: 'power2.out' });
           gsap.to(borderMat.color, { r: c.r, g: c.g, b: c.b, duration: 0.25 });
         }
       };
