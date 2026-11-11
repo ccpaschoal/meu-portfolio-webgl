@@ -239,7 +239,7 @@ export const PortfolioApp: React.FC = () => {
       </nav>
       <main className="sr-only">
         <h1>Camilla Paschoal — design e desenvolvimento web</h1>
-        <p>Social media designer, web developer e AI product builder no Rio de Janeiro.</p>
+        <p>Content designer, AI-assisted — carrosséis para Instagram e sites em HTML/CSS no Rio de Janeiro.</p>
         <section aria-labelledby="sr-carrosseis">
           <h2 id="sr-carrosseis">Carrosséis para Instagram</h2>
           <ul>
