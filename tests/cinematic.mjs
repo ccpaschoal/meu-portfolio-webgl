@@ -188,6 +188,18 @@ try {
   assert.equal(await page.evaluate(() => window.portfolioApp.chapter03Group.visible), true,
     'Cliques rápidos no tracker devem terminar no último destino escolhido');
 
+  // Duas setas rápidas avançam dois atos (a segunda parte do destino da primeira)
+  await page.evaluate(() => window.portfolioApp.setProgress(0));
+  await page.waitForTimeout(400);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForTimeout(2200);
+  const doubleKey = await page.evaluate(() => ({
+    p: window.portfolioApp.masterTimeline.progress(),
+    spiralStart: window.portfolioApp.spiralStops[0]
+  }));
+  assert.ok(Math.abs(doubleKey.p - doubleKey.spiralStart) < 0.002, 'Duas setas rápidas devem levar à espiral');
+
   // TESTE 7: Atualização do Rastro do Cursor na Poeira
   console.log('-> Testando rastro interativo do cursor na poeira...');
   await page.mouse.move(600, 400);
@@ -445,6 +457,18 @@ try {
     assert.ok(mobileStatus.phoneScale > 0.75 && mobileStatus.contactScale < 1,
       'Celular da frente deve ter tamanho legível e o contato deve caber no móvel');
     assert.equal(mobileStatus.reducedMotion, true);
+    // Movimento reduzido: cada gesto pula direto para a próxima composição (nunca para no meio)
+    await mobile.mouse.move(195, 420);
+    await mobile.mouse.wheel(0, 100);
+    await mobile.waitForTimeout(500);
+    await mobile.mouse.wheel(0, 100);
+    await mobile.waitForTimeout(500);
+    const reducedStep = await mobile.evaluate(() => ({
+      p: window.portfolioApp.masterTimeline.progress(),
+      stops: window.portfolioApp.phoneStops
+    }));
+    assert.ok(Math.abs(reducedStep.p - reducedStep.stops[1]) < 0.001,
+      'Movimento reduzido: dois gestos levam ao segundo site');
     assert.ok(mobileStatus.trackerTop < 100, 'Tracker móvel deve ficar longe dos objetos centrais');
     assert.equal(mobileStatus.projectsLink, true, 'Projetos precisam de links HTML acessíveis');
   } finally {

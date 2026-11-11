@@ -354,11 +354,13 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
       if (newGesture) {
         gestureOrigin = targetProgress;
         const next = nextStopFrom(targetProgress, dir);
-        if (next !== null && Math.abs(next - targetProgress) > ACT_JUMP) {
+        if (next !== null && (reducedMotion.matches || Math.abs(next - targetProgress) > ACT_JUMP)) {
           playTransition(next, dir);
           return;
         }
       }
+      // Movimento reduzido: cada gesto é um passo direto para a próxima composição
+      if (reducedMotion.matches) return;
       targetProgress = clampLead(
         targetProgress + Math.max(-120, Math.min(120, e.deltaY)) * SCROLL_FACTOR * scrollSpeedAt(targetProgress)
       );
@@ -426,11 +428,12 @@ export const WebGLCanvas: React.FC<WebGLCanvasProps> = ({
 
       if (firstMove) {
         const next = nextStopFrom(targetProgress, dir);
-        if (next !== null && Math.abs(next - targetProgress) > ACT_JUMP) {
+        if (next !== null && (reducedMotion.matches || Math.abs(next - targetProgress) > ACT_JUMP)) {
           playTransition(next, dir);
           return;
         }
       }
+      if (reducedMotion.matches) return;
 
       targetProgress = clampLead(targetProgress + deltaY * SCROLL_FACTOR * scrollSpeedAt(targetProgress));
       scheduleSnap();

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import { WebGLCanvas } from './WebGLCanvas';
 import { IntroTeaser } from './IntroTeaser';
@@ -12,6 +12,8 @@ import { spiralSlidesData } from '../data/spiralSlides.js';
 export const PortfolioApp: React.FC = () => {
   const [isTeaser, setIsTeaser] = useState<boolean>(true);
   const [activeChapter, setActiveChapter] = useState<number>(0);
+  // Ato de destino da navegação em andamento (teclas rápidas somam a partir dele)
+  const navTargetRef = useRef<number | null>(null);
   const [progress, setProgress] = useState<number>(0.0);
   const [siteIndex, setSiteIndex] = useState<number>(0);
 
@@ -55,6 +57,9 @@ export const PortfolioApp: React.FC = () => {
     if (!app) return;
     // Durante a chegada/volta das Polaroids a narrativa ainda não pode ser movida
     if (!isTeaser && app.isTransitioning) return;
+    // Já a caminho deste ato (tecla repetida ou clique duplo): não reinicia a passagem
+    if (app.navTween && app.navTween.progress() < 1 && app.navTween.data === 'chapter' && navTargetRef.current === chapter) return;
+    navTargetRef.current = chapter;
 
     if (isTeaser) {
       handleEnter();
@@ -84,6 +89,7 @@ export const PortfolioApp: React.FC = () => {
 
     const state = { p: startProgress };
     const tl = gsap.timeline({
+      data: 'chapter',
       onComplete: () => {
         if (app.navTween === tl) app.navTween = null;
       }
@@ -128,12 +134,17 @@ export const PortfolioApp: React.FC = () => {
       if (window.portfolioApp?.isTransitioning) return;
       if (e.target instanceof Element && e.target.closest('details, input, textarea, select')) return;
 
+      // Com uma navegação em andamento, a próxima tecla parte do ato de destino (↓↓ avança dois atos)
+      const nav = window.portfolioApp?.navTween;
+      const base = nav && nav.progress() < 1 && nav.data === 'chapter' && navTargetRef.current !== null
+        ? navTargetRef.current
+        : activeChapter;
       if (e.key === 'ArrowDown' || e.key === 'PageDown') {
         e.preventDefault();
-        handleSelectChapter(Math.min(3, activeChapter + 1));
+        handleSelectChapter(Math.min(3, base + 1));
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
         e.preventDefault();
-        handleSelectChapter(Math.max(0, activeChapter - 1));
+        handleSelectChapter(Math.max(0, base - 1));
       } else if (e.key === 'Home') {
         e.preventDefault();
         handleSelectChapter(0);
